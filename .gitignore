@@ -1,0 +1,16 @@
+.pio/
+build/
+.vscode/
+*.bin
+*.elf
+*.map
+*.log
+.env
+.env.*
+!.env.example
+secrets.h
+credentials.h
+*private*.key
+*.pem
+.DS_Store
+Thumbs.db
