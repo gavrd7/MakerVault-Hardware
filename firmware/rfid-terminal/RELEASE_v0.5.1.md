@@ -25,3 +25,9 @@ Based on tested v0.5.0 firmware and the v0.5.0.1 heartbeat adjustment. ESP32-S3 
 ## Pending
 
 Upload the exact tested Arduino source files from `MakerVault_Handheld_v0510.zip` to `firmware/rfid-terminal/MakerVault_v0510/` after laptop compilation and validation. Do not treat this documentation PR as a completed firmware release.
+
+## Bundled QR generator (third party)
+
+The firmware folder includes `qrcode.c` and `qrcode.h` from [ricmoo/QRCode](https://github.com/ricmoo/QRCode), licensed under the MIT License (copyright Richard Moore and Project Nayuki). The full original copyright and licence notice is retained at `firmware/rfid-terminal/third_party/QRCode-LICENSE.txt` and in the sources. These files are vendored so Arduino compiles the QR implementation beside the `.ino`, without manually copying source files into each sketch. Keep the copyright and licence in any redistribution. Other Arduino/ESP32 dependencies still need their normal installation.
+
+Note: At present this review branch includes the QR source and metadata; the complete v0.5.1.1 sketch has not yet been committed to GitHub. Do not mark the firmware release complete until the full sketch is present and verified.
