@@ -1,6 +1,6 @@
 # Flashing and validating the MakerVault handheld firmware
 
-This guide refers to the physically tested **v0.5.1.13** source at [MakerVault_v0523](MakerVault_v0523/). A later metadata-only **v0.5.1.14** correction is in a **draft PR #3** and has **not** been confirmed hardware-tested. Do not present it as a released or validated build.
+This guide refers to **v0.5.1.14**, the current merged and physically tested firmware in [MakerVault_v0523](MakerVault_v0523/). v0.5.1.13 was the original acceptance baseline; v0.5.1.14 corrected only version-reporting metadata. No downloadable binary or clean-machine reproducible build has been verified.
 
 ## Prepare Arduino IDE
 
@@ -13,7 +13,7 @@ This guide refers to the physically tested **v0.5.1.13** source at [MakerVault_v
 
 ## First boot and functional acceptance
 
-With the enclosure open, watch Serial Monitor at **115200** and confirm TFT splash/menu. In the physically tested v0.5.1.13 baseline, Serial startup states v0.5.1.13 but System info incorrectly shows an older firmware string; heartbeat metadata is also stale. This **does not establish that an older firmware binary is installed**.
+With the enclosure open, watch Serial Monitor at **115200** and confirm TFT splash/menu. For the merged v0.5.1.14 firmware, System info and heartbeat version reporting have been confirmed by the owner.
 
 1. Confirm screen backlight, orientation, menu text, and **no uncontrolled reset/reboot**.
 2. Rotate the encoder both ways, then independently press encoder-select, Back and Confirm.
@@ -37,6 +37,6 @@ With the enclosure open, watch Serial Monitor at **115200** and confirm TFT spla
 | Wi-Fi setup unavailable | Confirm 2.4 GHz, local AP/portal status, power, and local network reachability |
 | HTTPS rejected | Validate host/IP against certificate SAN, correct trusted Local CA/public roots, valid device date/time; do **not** disable certificate validation |
 | Pairing never gets code | Confirm backend HTTPS reachability and server wizard; inspect TLS diagnostics before retrying |
-| Metadata says older version | Known v0.5.1.13 display/heartbeat label bug; v0.5.1.14 correction awaits physical validation |
+| Metadata says older version | Confirm you are flashing current v0.5.1.14 from main, not the older v0.5.1.13 source |
 
 > **Build reproducibility outstanding:** A hardware user has already confirmed the firmware features work, but an independent clean Arduino install and pinned third-party dependency versions have not yet been verified. No precompiled binary or OTA package is claimed.
