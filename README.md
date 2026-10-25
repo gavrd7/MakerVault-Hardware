@@ -1,27 +1,35 @@
 # MakerVault Hardware
 
-Hardware and firmware for [MakerVault](https://github.com/gavrd7/MakerVault).
+Firmware and hardware documentation for [MakerVault](https://github.com/gavrd7/MakerVault).
+
+**Licence:** MakerVault-authored code is licensed under the **GNU Affero General Public License v3 (AGPL-3.0)**, matching the main MakerVault project. See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md). The vendored QRCode implementation retains its original MIT licence.
+
+**Repository visibility:** Pre-publication review ongoing. See [public-release checklist](PUBLIC_RELEASE_CHECKLIST.md). Do not treat the source as a production-certified firmware binary.
 
 ## RFID/NFC handheld terminal
 
-**Current physically tested baseline:** **v0.5.1.13 release candidate** (25 October 2026). The exact tested source has not yet been imported into this repository; see [source import requirements](firmware/rfid-terminal/SOURCE_IMPORT_v0.5.1.13.md) and [hardware acceptance](firmware/rfid-terminal/ACCEPTANCE_v0.5.1.13.md) before merging or publishing a release.
+**Hardware-tested firmware:** v0.5.1.13 release candidate (ESP32-S3 SuperMini, MFRC522 SPI, ST7735S 128×128 TFT, KY-040 encoder and two buttons).
 
-ESP32-S3 SuperMini, MFRC522 shared SPI reader, ST7735S 128×128 TFT, KY-040 encoder with push and separate Back/Confirm buttons.
+- [Arduino source](firmware/rfid-terminal/MakerVault_v0523/)
+- [Build, wiring and flashing guide](firmware/rfid-terminal/BUILD.md)
+- [Hardware test evidence](firmware/rfid-terminal/ACCEPTANCE_v0.5.1.13.md)
+- [Secure pairing compatibility](firmware/rfid-terminal/PAIRING_COMPATIBILITY.md)
+- [TLS security checks](firmware/rfid-terminal/TLS_SECURITY_ACCEPTANCE_v0.5.1.7.md)
 
-Working and tested: multi-network 2.4 GHz Wi-Fi, QR/LAN and temporary AP setup, MakerVault pairing-v1 over validated HTTPS, Local CA import/removal, endpoint-bound persistent credentials, heartbeat, scope/status reporting, offline RFID UID reads, and responsive TFT menus.
+### Available now
 
-**Not yet implemented:** MakerTag record resolution, tag creation/registration and writing physical RFID memory. Do not advertise these as complete merely because backend API scopes exist.
+2.4 GHz Wi-Fi with multiple saved networks; temporary access point or LAN QR phone setup; certificate-verified MakerVault HTTPS, Local CA management, secure eight-digit pairing-v1, NVS credential persistence and endpoint guard, background heartbeat, TFT navigation, and basic RFID/NFC tag UID scanning.
 
-The source imports the MIT-licensed [ricmoo/QRCode](https://github.com/ricmoo/QRCode) C library. Retain its source notices and [licence](firmware/rfid-terminal/third_party/QRCode-LICENSE.txt).
+### Not implemented yet
 
-See [pairing compatibility](firmware/rfid-terminal/PAIRING_COMPATIBILITY.md) and the [MakerVault Connected Devices spec](https://github.com/gavrd7/MakerVault/blob/feature/143-connected-device-pairing/docs/CONNECTED_DEVICES_PAIRING.md).
+Online MakerTag record resolution, MakerTag creation/registration, physical RFID writes and Creality CFS payload decoding. Backend API permission scopes do not imply these features are implemented in the handheld.
 
-## Other devices
+The tested build contains an older version string in System info and some heartbeat metadata; do not silently change the validated source.
 
-The filament weigh station is planned. It is not part of this handheld firmware baseline.
+## Other hardware
 
-## Release safeguards
+A filament weigh station is planned. **Finished printable enclosure models are not yet included here**; assembly documentation and source-model licensing require a separate review.
 
-Keep this repository private until the exact tested sketch, dependencies, build instructions and security review are complete. Never commit Wi-Fi credentials, API keys or CA private keys. The v0.5.1.13 source contains an older version label in System info/heartbeat metadata; correct and test it before declaring a published stable version.
+## Responsible distribution
 
-Choose an appropriate project licence before making this repository public.
+Do not commit credentials, provisioning logs with secrets, local CA private keys or personal network details. Do not publish before reviewing historical commits and the provenance/licensing of embedded icon and brand images.
