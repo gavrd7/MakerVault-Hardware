@@ -1,6 +1,6 @@
 # Build the MakerVault RFID/NFC handheld
 
-**Baseline:** v0.5.1.13 — tested on physical hardware. Source in [MakerVault_v0523](MakerVault_v0523/). **The firmware is a tested candidate, not an Arduino-CI-verified published binary.**
+**Latest tested firmware:** v0.5.1.14 — version reporting corrected, flashed and regression-tested on physical hardware; v0.5.1.13 is the original acceptance baseline. Source in [MakerVault_v0523](MakerVault_v0523/). **The firmware is a tested candidate, not an Arduino-CI-verified published binary.**
 
 ## Hardware
 
@@ -66,6 +66,6 @@ Working: UID/type scanning of compatible RFID/NFC tags, multi-SSID 2.4 GHz Wi-Fi
 
 Not implemented: MakerTag record resolution, registering/assigning MakerTags, reading Creality CFS payload details, physical RFID writing, OTA firmware update, comprehensive factory reset. The experimental hardware has not been independently certified.
 
-## Known release note
+## Version validation
 
-The tested source reports v0.5.1.13 at startup, but the System info string and some heartbeat metadata still contain older version labels. Correcting those strings requires a separately verified follow-up build so the accepted source is not silently changed.
+Firmware v0.5.1.14 is merged to `main` and the owner confirmed the terminal displays its updated version, heartbeat reporting is correct, and RFID/NFC, Wi-Fi, HTTPS/pairing and controls work as previously tested. The `MakerVault_v0523` source-folder name is historical, not the firmware version.
