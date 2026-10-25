@@ -502,7 +502,7 @@ void connectKnownNetwork(){
 }
 
 void info(){
- detailClear();detailWrapped("Firmware v0.5.1.10",WHITE);
+ detailClear();detailWrapped("Firmware v0.5.1.14",WHITE);
  detailWrapped("Device: "+(mvDeviceName.length()?mvDeviceName:String("Not verified")),SILVER);
  detailWrapped("Wi-Fi IP: "+currentIpAddress(),WiFi.status()==WL_CONNECTED?WHITE:SILVER);
  detailWrapped("Pairing: "+String(mvPairingLabel()),mvPairVerified?GREEN:AMBER);
