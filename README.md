@@ -2,6 +2,13 @@
 
 Firmware and hardware documentation for [MakerVault](https://github.com/gavrd7/MakerVault).
 
+
+## Related MakerVault repositories
+
+- **[MakerVault](https://github.com/gavrd7/MakerVault)** — self-hosted application, Docker deployment and releases.
+- **[MakerVault User Guide](https://gavrd7.github.io/MakerVault-docs/)** ([documentation source](https://github.com/gavrd7/MakerVault-docs)) — installation, configuration and usage guides.
+- **[MakerVault-Hardware](https://github.com/gavrd7/MakerVault-Hardware)** — RFID/NFC handheld firmware, wiring, printable enclosure files and future connected hardware.
+
 **Licence:** MakerVault-authored code is licensed under the **GNU Affero General Public License v3 (AGPL-3.0)**, matching the main MakerVault project. See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md). The vendored QRCode implementation retains its original MIT licence.
 
 **Repository visibility:** Pre-publication review ongoing. See [public-release checklist](PUBLIC_RELEASE_CHECKLIST.md). Do not treat the source as a production-certified firmware binary.
