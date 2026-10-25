@@ -16,6 +16,8 @@ The full notice is retained in [QRCode-LICENSE.txt](firmware/rfid-terminal/third
 
 The firmware uses external libraries/cores installed separately through Arduino IDE. Their licences are **not** changed by this repository's AGPL licence. See [build instructions](firmware/rfid-terminal/BUILD.md).
 
-## Artwork and graphics — review before publication
+## MakerVault artwork and enclosure models
 
-`brand_images.h` includes an embedded RGB565 MakerVault logo derived from existing branding. `ui_icons.h` contains raster icons. **The source files do not record the original creator/licence for every graphic.** Confirm the project's rights to redistribute and license these assets (and any third-party icon sources) before switching the repository to public. Do not assume generic icon packs or modified online icons are automatically AGPL-compatible.
+The project maintainer confirms that the MakerVault logo was created specifically for MakerVault using ChatGPT, and that the enclosure design files and UI graphics in this repository were created for this project. No third-party icon packs or external artwork are knowingly included. These assets are distributed with the project under the stated licence to the extent the maintainer has rights to grant; this statement is not a guarantee of exclusive copyright in AI-generated content.
+
+If externally sourced material is introduced in future, identify its source and licence separately before redistribution.
