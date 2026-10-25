@@ -1,35 +1,27 @@
 # MakerVault Hardware
 
-**Private development repository — not production ready.**
+Hardware and firmware for [MakerVault](https://github.com/gavrd7/MakerVault).
 
-Firmware, hardware files and shared device integrations for [MakerVault](https://github.com/gavrd7/MakerVault).
+## RFID/NFC handheld terminal
 
-## Devices
-- **RFID/NFC handheld terminal** — ESP32-S3 SuperMini, MFRC522, ST7735S TFT, KY-040 encoder, Back and Confirm buttons.
-- **Filament weigh station** — planned; reuses provisioning and MakerVault device authentication.
+**Current physically tested baseline:** **v0.5.1.13 release candidate** (25 October 2026). The exact tested source has not yet been imported into this repository; see [source import requirements](firmware/rfid-terminal/SOURCE_IMPORT_v0.5.1.13.md) and [hardware acceptance](firmware/rfid-terminal/ACCEPTANCE_v0.5.1.13.md) before merging or publishing a release.
 
-## Development status
-- **Verified hardware baseline:** Rev C.3 shared SPI, encoder/buttons, TFT and RC522 tag reads.
-- **Firmware UI:** v0.3.10 contactless icon build; hardware validation of that specific version pending.
-- **Experimental:** v0.4.0 Wi-Fi provisioning AP and QR setup portal. **Compile issue:** requires Richard Moore's `QRCode` library providing `qrcode_initText`. Do not deploy until compiled and security-reviewed.
-- **Backend:** [MakerVault device pairing wizard issue #143](https://github.com/gavrd7/MakerVault/issues/143).
+ESP32-S3 SuperMini, MFRC522 shared SPI reader, ST7735S 128×128 TFT, KY-040 encoder with push and separate Back/Confirm buttons.
 
-## Planned repository layout
-```text
-firmware/rfid-terminal/
-firmware/filament-weigh-station/
-shared/provisioning/
-shared/device-api/
-shared/credentials/
-shared/device-protocol/
-hardware/rfid-terminal/
-hardware/filament-weigh-station/
-docs/
-tests/
-.github/workflows/
-```
+Working and tested: multi-network 2.4 GHz Wi-Fi, QR/LAN and temporary AP setup, MakerVault pairing-v1 over validated HTTPS, Local CA import/removal, endpoint-bound persistent credentials, heartbeat, scope/status reporting, offline RFID UID reads, and responsive TFT menus.
 
-Keep working releases and experiments separate. Never commit Wi-Fi credentials, MakerVault API keys, production certificates or other secrets.
+**Not yet implemented:** MakerTag record resolution, tag creation/registration and writing physical RFID memory. Do not advertise these as complete merely because backend API scopes exist.
 
-## Release
-Keep this repository private until integrated, tested and documented. Select a license before publication.
+The source imports the MIT-licensed [ricmoo/QRCode](https://github.com/ricmoo/QRCode) C library. Retain its source notices and [licence](firmware/rfid-terminal/third_party/QRCode-LICENSE.txt).
+
+See [pairing compatibility](firmware/rfid-terminal/PAIRING_COMPATIBILITY.md) and the [MakerVault Connected Devices spec](https://github.com/gavrd7/MakerVault/blob/feature/143-connected-device-pairing/docs/CONNECTED_DEVICES_PAIRING.md).
+
+## Other devices
+
+The filament weigh station is planned. It is not part of this handheld firmware baseline.
+
+## Release safeguards
+
+Keep this repository private until the exact tested sketch, dependencies, build instructions and security review are complete. Never commit Wi-Fi credentials, API keys or CA private keys. The v0.5.1.13 source contains an older version label in System info/heartbeat metadata; correct and test it before declaring a published stable version.
+
+Choose an appropriate project licence before making this repository public.
