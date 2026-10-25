@@ -11,7 +11,11 @@ Firmware and hardware documentation for [MakerVault](https://github.com/gavrd7/M
 **Hardware-tested firmware:** v0.5.1.13 release candidate (ESP32-S3 SuperMini, MFRC522 SPI, ST7735S 128×128 TFT, KY-040 encoder and two buttons).
 
 - [Arduino source](firmware/rfid-terminal/MakerVault_v0523/)
-- [Build, wiring and flashing guide](firmware/rfid-terminal/BUILD.md)
+- [Firmware build setup](firmware/rfid-terminal/BUILD.md)
+- [Firmware flashing / troubleshooting](firmware/rfid-terminal/FLASHING.md)
+- [Exact Rev C.3 wiring reference](hardware/rfid-terminal/WIRING.md)
+- [Rev3 hardware BOM](hardware/rfid-terminal/BOM.md)
+- [Rev3 enclosure assembly / CAD](hardware/rfid-terminal/BUILD_GUIDE.md)
 - [Hardware test evidence](firmware/rfid-terminal/ACCEPTANCE_v0.5.1.13.md)
 - [Secure pairing compatibility](firmware/rfid-terminal/PAIRING_COMPATIBILITY.md)
 - [TLS security checks](firmware/rfid-terminal/TLS_SECURITY_ACCEPTANCE_v0.5.1.7.md)
