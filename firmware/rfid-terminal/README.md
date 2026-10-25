@@ -1,27 +1,17 @@
-# RFID/NFC handheld terminal
+# MakerVault RFID/NFC handheld terminal
 
-**Hardware:** ESP32-S3 SuperMini + MFRC522 (SPI) + ST7735S 128×128 TFT + KY-040 encoder + two buttons.
+**Current tested baseline: v0.5.1.13.** The source is in [MakerVault_v0523](MakerVault_v0523/); this replaces the obsolete v0.4.0 experimental README.
 
-## Validated Rev C.3 GPIO
-| Function | GPIO |
-|---|---|
-| Shared SPI SCK / MOSI / MISO | 12 / 11 / 13 |
-| TFT CS / DC / RST | 1 / 2 / 43 |
-| RC522 CS / RST | 10 / 9 |
-| Encoder CLK / DT / push | 4 / 5 / 6 |
-| Back / Confirm | 7 / 8 |
-| TFT BLK | 3V3 directly |
+- [Build and validated wiring](BUILD.md)
+- [Hardware acceptance](ACCEPTANCE_v0.5.1.13.md)
+- [Pairing protocol](PAIRING_COMPATIBILITY.md)
+- [TLS testing](TLS_SECURITY_ACCEPTANCE_v0.5.1.7.md)
+- [Third-party QRCode MIT licence](third_party/QRCode-LICENSE.txt)
 
-Preserve single hardware SPI bus and deselect both chip-select lines before initialisation.
+Use Arduino ESP32S3 Dev Module, core 3.x and a suitable Huge APP partition. The QRCode C files are included in the sketch folder; do not need to be copied manually. Preserve NVS during ordinary updates.
 
-## Firmware status
-- v0.3.3: proven reader and display SPI integration.
-- v0.3.10: UI baseline (requires validation).
-- v0.4.0: **experimental provisioning**, has not passed Arduino compilation yet.
+Current capabilities: Wi-Fi provisioning, secure MakerVault pairing, Local CA management, HTTP/TLS diagnostics, background heartbeat, permission status, UID reading, TFT/encoder controls.
 
-### v0.4.0 QR-code dependency
-The provisioning code uses **Richard Moore (ricmoo)'s** [QRCode library](https://github.com/ricmoo/QRCode), with its C API `QRCode`, `qrcode_getBufferSize`, `qrcode_initText`, `ECC_LOW`, and `qrcode_getModule`. A different installed `qrcode.h` that exposes only `esp_qrcode_*` is **incompatible**.
+Not yet available: MakerTag-to-record online lookup, creating MakerTags, assigning tags to records, decoding Creality CFS payload and writing RFID blocks. The source also contains an outdated on-device firmware version label pending a retested metadata-only fix.
 
-Install the correct library and resolve header collisions before compiling. Do not remove the QR functionality just to get a green build.
-
-No device secrets should be committed to this repository.
+**Security:** Configuration and API requests to MakerVault must use verified HTTPS; the terminal's temporary phone setup portal is local HTTP only, intended for a trusted LAN/AP. NVS persistence should not be described as encrypted at rest. The terminal-side Forget pairing does not revoke the server-side key.
