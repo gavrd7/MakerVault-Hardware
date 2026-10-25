@@ -8,7 +8,7 @@ Firmware and hardware documentation for [MakerVault](https://github.com/gavrd7/M
 
 ## RFID/NFC handheld terminal
 
-**Hardware-tested firmware:** v0.5.1.13 release candidate (ESP32-S3 SuperMini, MFRC522 SPI, ST7735S 128×128 TFT, KY-040 encoder and two buttons).
+**Latest hardware-tested firmware:** v0.5.1.14 (merged to main; v0.5.1.13 remains the original acceptance baseline) (ESP32-S3 SuperMini, MFRC522 SPI, ST7735S 128×128 TFT, KY-040 encoder and two buttons).
 
 - [Arduino source](firmware/rfid-terminal/MakerVault_v0523/)
 - [Firmware build setup](firmware/rfid-terminal/BUILD.md)
@@ -28,11 +28,11 @@ Firmware and hardware documentation for [MakerVault](https://github.com/gavrd7/M
 
 Online MakerTag record resolution, MakerTag creation/registration, physical RFID writes and Creality CFS payload decoding. Backend API permission scopes do not imply these features are implemented in the handheld.
 
-The tested build contains an older version string in System info and some heartbeat metadata; do not silently change the validated source.
+The v0.5.1.14 maintenance update corrected the displayed and heartbeat firmware versions and passed physical regression tests.
 
 ## Other hardware
 
-A filament weigh station is planned. **Finished printable enclosure models are not yet included here**; assembly documentation and source-model licensing require a separate review.
+A filament weigh station is planned. Final Rev3 enclosure STL, STEP, 3MF and CAD sources are included in [hardware/rfid-terminal/](hardware/rfid-terminal/).
 
 ## Responsible distribution
 
