@@ -9,6 +9,7 @@
 #include "brand_images.h"
 #include "ui_icons.h"
 #include "provisioning.h"
+#include "connected_registration.h"
 
 // MakerVault handheld UI v0.5.1.14 -- ESP32-S3 SuperMini, Rev C.3
 // Shared hardware SPI, read-only RFID, all original GPIO assignments.
@@ -30,7 +31,7 @@ constexpr uint16_t BG=0x0843, CARD=0x10C6, NAVY=0x10ED,
 // Write actions remain feature gated until fully implemented. API scope alone
 // never authorises a placeholder to appear as a working device operation.
 constexpr bool MAKERTAG_CREATE_IMPLEMENTED=false, RFID_WRITE_IMPLEMENTED=false;
-enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE};
+enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION};
 Page page=HOME;
 const char* choices[]={"MakerTags","RFID Tags","Connections","System info"};
 int subSelected=0, detailScroll=0, detailCount=0;
@@ -529,10 +530,19 @@ void mvTlsTestPage(){
  }
  detailPaint("Test HTTPS");
 }
+void registrationScreen(){
+ display->fillScreen(BG);header("Assign MakerTag");
+ if(regState==1){textAt(8,38,"Record:",SILVER);textAt(8,53,regTarget.substring(0,19).c_str(),WHITE);textAt(8,77,"Present a tag",SKY);bottom("Back: dismiss");}
+ else if(regState==2){textAt(8,38,"UID:",SILVER);textAt(8,53,regUid.substring(0,19).c_str(),WHITE);textAt(8,78,"Assign this tag?",SKY);bottom("OK: save Back: no");}
+ else if(regState==3){textAt(8,55,"Registering...",SKY);bottom("Please wait");}
+ else if(regState==4){textAt(8,48,"Tag assigned",GREEN);bottom("Back: menu");}
+ else {textAt(8,49,regError.substring(0,19).c_str(),AMBER);bottom("Back: menu");}
+}
 void render(){
  switch(page){
   case HOME:home();break;
   case SCAN:scanPage();break;
+  case REGISTRATION:registrationScreen();break;
   case RECENT: simple("Recent tag","Not available");break;
   case CONTROLS:simple("Control test","Turn / press", "Back exits");break;
   case CONNECTIONS:connections();break;
@@ -627,6 +637,7 @@ void choose(){
  Serial.print("[MENU] Selected: ");Serial.println(choices[selected]);render();
 }
 void back(){
+ if(page==REGISTRATION && regState!=3){regReset();page=MAKERTAGS_MENU;render();return;}
  Serial.println("[BUTTON] BACK");if(page==DELETE_WIFI){pendingDeleteSSID="";page=KNOWN_WIFI;render();return;}if(page==SETUP_WIFI || page==MAKERVAULT_SETUP){if(lanPortalActive)stopPortal();page=(page==SETUP_WIFI)?WIFI_MENU:MV_MENU;render();return;}if(page==KNOWN_WIFI||page==WIFI_STATUS){page=WIFI_MENU;render();return;}
  if(page==MV_PAIR){if(mvPairState==1||mvPairState==2)mvCancelPairing();page=MV_MENU;render();return;}
  if(page==SCAN){page=selected==0?MAKERTAGS_MENU:RFID_MENU;render();return;}
@@ -649,6 +660,7 @@ void processInputs(){
  if(backKey.pressed())back();
  if(confirmKey.pressed()){
   Serial.println("[BUTTON] CONFIRM");
+  if(page==REGISTRATION && regState==2){regSubmit(regUid,regKind);registrationScreen();return;}
   if(page==HOME)choose();else if(page==CONTROLS)control("Confirm");
   else if(page==SCAN){scanResultVisible=false;scanPage();}
   else if(page==DELETE_WIFI){
@@ -701,7 +713,7 @@ void readerInit(){
 }
 
 void pollTag(){
- if(page!=SCAN||scanResultVisible||(uint32_t)(millis()-lastPoll)<100)return;
+ if((page!=SCAN && !(page==REGISTRATION && regState==1))||scanResultVisible||(uint32_t)(millis()-lastPoll)<100)return;
  lastPoll=millis();digitalWrite(TFT_CS,HIGH);
  if(!rfid.PICC_IsNewCardPresent()||!rfid.PICC_ReadCardSerial())return;
  String uid="";
@@ -711,6 +723,7 @@ void pollTag(){
  uid.toUpperCase();recentUid=uid;
  recentType=String(rfid.PICC_GetTypeName(rfid.PICC_GetType(rfid.uid.sak)));
  rfid.PICC_HaltA();rfid.PCD_StopCrypto1();
+ if(page==REGISTRATION){regUid=uid;regKind=(rfid.uid.sak==0x00?"nfc":"rfid");regState=2;registrationScreen();return;}
  hasScanned=true;scanResultVisible=true;
  Serial.printf("[RFID] UID=%s, Type=%s\n",recentUid.c_str(),recentType.c_str());
  scanPage();
@@ -733,6 +746,9 @@ void setup(){
 void loop(){
  provisioningLoop();
  mvLoop();mvHeartbeatLoop();
+ regSchedulePoll();
+ if(regState==1 && page!=REGISTRATION){page=REGISTRATION;render();}
+ if(page==REGISTRATION && (regState==4||regState==5)){static uint8_t lastDrawn=0;if(lastDrawn!=regState){lastDrawn=regState;registrationScreen();}}
  processInputs();
  if(!readerInitDone && (uint32_t)(millis()-lastInputAt)>1100)readerInit();
  if(readerInitDone)pollTag();
