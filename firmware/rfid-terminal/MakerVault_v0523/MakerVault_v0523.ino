@@ -723,7 +723,18 @@ void pollTag(){
  uid.toUpperCase();recentUid=uid;
  recentType=String(rfid.PICC_GetTypeName(rfid.PICC_GetType(rfid.uid.sak)));
  rfid.PICC_HaltA();rfid.PCD_StopCrypto1();
- if(page==REGISTRATION){regUid=uid;regKind=(rfid.uid.sak==0x00?"nfc":"rfid");regState=2;registrationScreen();return;}
+ if(page==REGISTRATION){
+  // RC522 card-family detection cannot distinguish NTAG215 from all
+  // other Type 2 / Ultralight-compatible tags. Validate model separately
+  // before enabling any tag-memory write capability.
+  MFRC522::PICC_Type family=rfid.PICC_GetType(rfid.uid.sak);
+  if(family!=MFRC522::PICC_TYPE_MIFARE_UL && family!=MFRC522::PICC_TYPE_MIFARE_1K){
+   regError="Unsupported tag";regState=5;registrationScreen();return;
+  }
+  regUid=uid;
+  regKind=(family==MFRC522::PICC_TYPE_MIFARE_UL?"nfc":"rfid");
+  regState=2;registrationScreen();return;
+ }
  hasScanned=true;scanResultVisible=true;
  Serial.printf("[RFID] UID=%s, Type=%s\n",recentUid.c_str(),recentType.c_str());
  scanPage();
