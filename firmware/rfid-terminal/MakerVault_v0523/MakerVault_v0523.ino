@@ -743,7 +743,7 @@ void readerInit(){
 }
 
 void pollTag(){
- if((page!=SCAN && !(page==REGISTRATION && regState==1))||scanResultVisible||(uint32_t)(millis()-lastPoll)<100)return;
+ if((page!=SCAN && !(page==REGISTRATION && regState==1))||(page==SCAN && scanResultVisible)||(uint32_t)(millis()-lastPoll)<100)return;
  lastPoll=millis();digitalWrite(TFT_CS,HIGH);
  if(!rfid.PICC_IsNewCardPresent()||!rfid.PICC_ReadCardSerial())return;
  String uid="";
@@ -788,7 +788,7 @@ void loop(){
  provisioningLoop();
  mvLoop();mvHeartbeatLoop();
  regSchedulePoll();
- if(regState==1 && page!=REGISTRATION){page=REGISTRATION;render();}
+ if(regState==1 && page!=REGISTRATION){scanResultVisible=false;lastPoll=0;page=REGISTRATION;render();}
  if(page==REGISTRATION && regState==1 && regTarget.length()>45){static uint32_t lastNamePage=UINT32_MAX;uint32_t currentNamePage=millis()/4000UL;if(currentNamePage!=lastNamePage){lastNamePage=currentNamePage;registrationScreen();}}
  if(page==REGISTRATION && (regState==4||regState==5)){static uint8_t lastDrawn=0;if(lastDrawn!=regState){lastDrawn=regState;registrationScreen();}}
  processInputs();
