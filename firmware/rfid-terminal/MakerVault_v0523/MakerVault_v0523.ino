@@ -530,9 +530,11 @@ void mvTlsTestPage(){
  }
  detailPaint("Test HTTPS");
 }
-// Wrap long record names into at most three readable lines on the 128px TFT.
+// Wrap labels on the 128px TFT; rotate through additional text when needed.
 void regDrawRecordName(const String &name) {
- String remaining=name;
+ const int pageCount=max(1,((int)name.length()+44)/45);
+ const int page=(millis()/4000UL)%pageCount;
+ String remaining=name.substring(page*45,min((int)name.length(),(page+1)*45));
  int line=0;
  while(remaining.length() && line<3) {
   int maxChars=19;
@@ -548,11 +550,7 @@ void regDrawRecordName(const String &name) {
   remaining.trim();
   line++;
  }
- // When text exceeds three lines, rotate the name rather than silently
- // replacing its end with an ellipsis. Current record labels fit normally.
- if(remaining.length()) {
-  Serial.printf("[REG] Long record label continues: %s\\n",remaining.c_str());
- }
+
 }
 void registrationScreen(){
  display->fillScreen(BG);header("Assign MakerTag");
@@ -791,6 +789,7 @@ void loop(){
  mvLoop();mvHeartbeatLoop();
  regSchedulePoll();
  if(regState==1 && page!=REGISTRATION){page=REGISTRATION;render();}
+ if(page==REGISTRATION && regState==1 && regTarget.length()>45){static uint32_t lastNamePage=UINT32_MAX;uint32_t currentNamePage=millis()/4000UL;if(currentNamePage!=lastNamePage){lastNamePage=currentNamePage;registrationScreen();}}
  if(page==REGISTRATION && (regState==4||regState==5)){static uint8_t lastDrawn=0;if(lastDrawn!=regState){lastDrawn=regState;registrationScreen();}}
  processInputs();
  if(!readerInitDone && (uint32_t)(millis()-lastInputAt)>1100)readerInit();
