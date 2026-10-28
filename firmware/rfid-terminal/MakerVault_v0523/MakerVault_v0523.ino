@@ -636,11 +636,24 @@ void registrationScreen(){
   textAt(7,87,"Assign this tag?",SKY);
   bottom("OK: save Back: no");
  } else if(regState==6) {
-  textAt(7,34,"Already registered",AMBER);
-  textAt(7,49,regPreviousLabel.substring(0,19).c_str(),WHITE);
-  textAt(7,65,"Reassign to:",SILVER);
-  textAt(7,79,regTarget.substring(0,19).c_str(),WHITE);
-  bottom("OK: reassign Back: no");
+  // Both names wrap at word boundaries. Long labels cycle through their
+  // remaining lines rather than silently clipping the destination.
+  textAt(7,30,"Already registered",AMBER);
+  String oldLines[REG_MAX_LINES],newLines[REG_MAX_LINES];
+  int oldCount=regWrapLines(regPreviousLabel,oldLines);
+  int newCount=regWrapLines(regTarget,newLines);
+  int oldPages=max(1,(oldCount+1)/2),newPages=max(1,(newCount+1)/2);
+  int pageNumber=(millis()/4000UL)%max(oldPages,newPages);
+  for(int i=0;i<2;i++){
+   int oldIndex=(pageNumber%oldPages)*2+i;
+   if(oldIndex<oldCount)textAt(7,43+i*11,oldLines[oldIndex].c_str(),WHITE);
+  }
+  textAt(7,66,"Reassign to:",SILVER);
+  for(int i=0;i<2;i++){
+   int newIndex=(pageNumber%newPages)*2+i;
+   if(newIndex<newCount)textAt(7,79+i*11,newLines[newIndex].c_str(),WHITE);
+  }
+  bottom("OK: move Back: no");
  } else if(regState==3) {
   textAt(7,54,"Registering...",SKY);
   bottom("Please wait");
@@ -892,7 +905,7 @@ void loop(){
  if(page==LOOKUP_REQUEST){static uint8_t lastRemoteState=255;if(lastRemoteState!=remoteLookupState){lastRemoteState=remoteLookupState;remoteLookupScreen();}}
  if(regState==1 && page!=REGISTRATION){scanResultVisible=false;lastPoll=0;page=REGISTRATION;render();}
  if(page==REGISTRATION && regState==1){static uint32_t lastNamePage=UINT32_MAX;uint32_t currentNamePage=millis()/4000UL;if(currentNamePage!=lastNamePage){lastNamePage=currentNamePage;registrationScreen();}}
- if(page==REGISTRATION && (regState==4||regState==5||regState==6)){static uint8_t lastDrawn=0;if(lastDrawn!=regState){lastDrawn=regState;registrationScreen();}}
+ if(page==REGISTRATION && (regState==4||regState==5||regState==6)){static uint8_t lastDrawn=0;static uint32_t lastReassignPage=UINT32_MAX;uint32_t reassignPage=millis()/4000UL;if(lastDrawn!=regState || (regState==6 && lastReassignPage!=reassignPage)){lastDrawn=regState;lastReassignPage=reassignPage;registrationScreen();}}
  processInputs();
  if(!readerInitDone && (uint32_t)(millis()-lastInputAt)>1100)readerInit();
  if(readerInitDone)pollTag();
