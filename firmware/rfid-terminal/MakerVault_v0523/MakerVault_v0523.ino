@@ -757,7 +757,7 @@ void choose(){
 }
 void back(){
  if(page==LOOKUP_REQUEST && remoteLookupState!=2){remoteLookupReset();page=MAKERTAGS_MENU;render();return;}
- if(page==REGISTRATION && regState!=3){regReset();page=MAKERTAGS_MENU;render();return;}
+ if(page==REGISTRATION && regState!=3){regCancel();page=MAKERTAGS_MENU;render();return;}
  Serial.println("[BUTTON] BACK");if(page==DELETE_WIFI){pendingDeleteSSID="";page=KNOWN_WIFI;render();return;}if(page==SETUP_WIFI || page==MAKERVAULT_SETUP){if(lanPortalActive)stopPortal();page=(page==SETUP_WIFI)?WIFI_MENU:MV_MENU;render();return;}if(page==KNOWN_WIFI||page==WIFI_STATUS){page=WIFI_MENU;render();return;}
  if(page==MV_PAIR){if(mvPairState==1||mvPairState==2)mvCancelPairing();page=MV_MENU;render();return;}
  if(page==SCAN){page=selected==0?MAKERTAGS_MENU:RFID_MENU;render();return;}
