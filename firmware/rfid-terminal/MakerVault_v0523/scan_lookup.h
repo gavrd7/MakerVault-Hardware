@@ -5,6 +5,7 @@ String scanLookupName="", scanLookupCode="", scanLookupError="";
 volatile uint8_t scanLookupState=0; // 0 idle/offline, 1 checking, 2 found, 3 unknown, 4 error
 uint32_t scanLookupSerial=0;
 String scanLookupUid="", scanLookupKind="";
+bool scanLookupQueued=false;
 
 void scanLookupTask(void *) {
  String response;
@@ -28,12 +29,21 @@ void scanLookupTask(void *) {
  vTaskDelete(nullptr);
 }
 
+void scanLookupDispatch() {
+ if(!scanLookupQueued || mvTask || scanLookupState!=1)return;
+ if(!mvPairVerified || !mvCanReadTags || !mvEndpointApproved() || WiFi.status()!=WL_CONNECTED){
+  scanLookupQueued=false;scanLookupState=4;scanLookupError="Lookup unavailable";return;
+ }
+ scanLookupQueued=false;
+ if(xTaskCreatePinnedToCore(scanLookupTask,"mv_tag_lookup",12288,nullptr,1,&mvTask,0)!=pdPASS){
+  mvTask=nullptr;scanLookupState=4;scanLookupError="Memory unavailable";
+ }
+}
 void scanLookupBegin(const String &uid,const String &kind) {
- scanLookupState=0;scanLookupName="";scanLookupCode="";scanLookupError="";
- if(!mvPairVerified||!mvCanReadTags||!mvEndpointApproved()||mvTask||WiFi.status()!=WL_CONNECTED)return;
+ scanLookupQueued=false;scanLookupState=0;scanLookupName="";scanLookupCode="";scanLookupError="";
+ if(!mvPairVerified||!mvCanReadTags||!mvEndpointApproved()||WiFi.status()!=WL_CONNECTED)return;
  scanLookupUid=uid;scanLookupKind=kind;
  scanLookupState=1;
- if(xTaskCreatePinnedToCore(scanLookupTask,"mv_tag_lookup",12288,nullptr,1,&mvTask,0)!=pdPASS){
-   mvTask=nullptr;scanLookupState=4;scanLookupError="Memory unavailable";
- }
+ scanLookupQueued=true;
+ scanLookupDispatch();
 }
