@@ -40,3 +40,7 @@ With the enclosure open, watch Serial Monitor at **115200** and confirm TFT spla
 | Metadata says older version | Confirm you are flashing current v0.5.1.14 from main, not the older v0.5.1.13 source |
 
 > **Build reproducibility outstanding:** A hardware user has already confirmed the firmware features work, but an independent clean Arduino install and pinned third-party dependency versions have not yet been verified. No precompiled binary or OTA package is claimed.
+
+## v0.6.0 candidate verification (PR #6)
+
+For the connected-terminal candidate, open `MakerVault_Terminal_Firmware/MakerVault_Terminal_Firmware.ino` from this PR branch. After flashing, confirm **v0.6.0** appears in System info and the 115200-baud serial startup message, and that online Maker Tag lookup, registration, cancellation and reassignment still work with the matching MakerVault branch. Firmware v0.5.1.14 remains the public stable baseline until v0.6.0 is published. This firmware does not write NFC/RFID tag memory.
