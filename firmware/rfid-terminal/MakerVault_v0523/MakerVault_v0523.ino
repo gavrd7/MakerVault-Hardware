@@ -279,7 +279,7 @@ void simple(const char* title,const char* line1,const char* line2=""){
 }
 // Draw a prominent record identity, then the MakerVault ID; UID is secondary.
 // Declared here because the scan screen reuses the record name wrapping helper.
-int regWrapLines(const String &source,String (&lines)[20]);
+int regWrapLines(const String &source, String *lines);
 void scanPage(){
  display->fillScreen(BG);
  if(!scanResultVisible){
