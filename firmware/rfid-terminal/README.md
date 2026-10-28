@@ -1,6 +1,6 @@
 # MakerVault RFID/NFC handheld terminal
 
-**Current tested baseline: v0.5.1.13.** The source is in [MakerVault_Terminal_Firmware](MakerVault_Terminal_Firmware/); this replaces the obsolete v0.4.0 experimental README.
+**Current firmware: v0.6.0.** The source is in [MakerVault_Terminal_Firmware](MakerVault_Terminal_Firmware/); this replaces the obsolete v0.4.0 experimental README.
 
 - [Build and validated wiring](BUILD.md)
 - [Hardware acceptance](ACCEPTANCE_v0.5.1.13.md)
@@ -16,4 +16,4 @@ In the draft connected-terminal branch, online UID lookup and browser-initiated 
 
 **Security:** Configuration and API requests to MakerVault must use verified HTTPS; the terminal's temporary phone setup portal is local HTTP only, intended for a trusted LAN/AP. NVS persistence should not be described as encrypted at rest. The terminal-side Forget pairing does not revoke the server-side key.
 
-**Next release candidate — v0.6.0 (PR #6):** The `MakerVault_Terminal_Firmware` sketch on this branch reports v0.6.0 and supports connected Maker Tag lookup, registration, reassignment, and cancellation with MakerVault app PR #150. The prior published firmware baseline remains v0.5.1.14; do not treat this draft as a published firmware release. Tag-memory/NDEF/CFS writing is not included.
+**v0.6.0:** `MakerVault_Terminal_Firmware` supports connected Maker Tag lookup, registration, reassignment, and cancellation with MakerVault v1.4.0. Earlier v0.5.1.14 acceptance and maintenance documentation is retained as historical evidence. Tag-memory/NDEF/CFS writing is not included.
