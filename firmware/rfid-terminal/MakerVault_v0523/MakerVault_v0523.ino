@@ -530,43 +530,83 @@ void mvTlsTestPage(){
  }
  detailPaint("Test HTTPS");
 }
-// Wrap labels on the 128px TFT; rotate through additional text when needed.
-void regDrawRecordName(const String &name) {
- const int pageCount=max(1,((int)name.length()+44)/45);
- const int page=(millis()/4000UL)%pageCount;
- String remaining=name.substring(page*45,min((int)name.length(),(page+1)*45));
- int line=0;
- while(remaining.length() && line<3) {
-  int maxChars=19;
-  int cut=min((int)remaining.length(),maxChars);
-  if(cut<(int)remaining.length()){
-   int space=remaining.lastIndexOf(' ',cut);
-   if(space>5)cut=space;
-  }
-  String segment=remaining.substring(0,cut);
-  segment.trim();
-  textAt(7,43+line*13,segment.c_str(),WHITE);
-  remaining=remaining.substring(cut);
-  remaining.trim();
-  line++;
- }
+// The ST7735S has 128x128 pixels. Default GFX text is 6px per character;
+// x=7 gives room for 19 characters without touching the right edge.
+constexpr int REG_TEXT_CHARS=19;
+constexpr int REG_MAX_LINES=20;
 
-}
-void registrationScreen(){
- display->fillScreen(BG);header("Assign MakerTag");
- if(regState==1){
-  regDrawRecordName(regTarget);
-  if(regRecordCode.length()){
-   textAt(7,87,"ID:",SILVER);
-   textAt(27,87,regRecordCode.substring(0,16).c_str(),WHITE);
+// Split at word boundaries; unusually long words are broken at the margin.
+// A label may exceed one screen, so page through all its lines every 4s.
+int regWrapLines(const String &source,String (&lines)[REG_MAX_LINES]) {
+ String pending=source;
+ pending.trim();
+ int count=0;
+ while(pending.length() && count<REG_MAX_LINES) {
+  int cut=min((int)pending.length(),REG_TEXT_CHARS);
+  if(cut<(int)pending.length()) {
+   int boundary=pending.lastIndexOf(' ',cut);
+   if(boundary>0)cut=boundary;
   }
-  textAt(7,103,"Present a tag",SKY);
-  bottom("Back: dismiss");
+  String line=pending.substring(0,cut);
+  line.trim();
+  if(line.length())lines[count++]=line;
+  pending=pending.substring(cut);
+  pending.trim();
  }
- else if(regState==2){textAt(8,38,"UID:",SILVER);textAt(8,53,regUid.substring(0,19).c_str(),WHITE);textAt(8,78,"Assign this tag?",SKY);bottom("OK: save Back: no");}
- else if(regState==3){textAt(8,55,"Registering...",SKY);bottom("Please wait");}
- else if(regState==4){textAt(8,48,"Tag assigned",GREEN);bottom("Back: menu");}
- else {textAt(8,49,regError.substring(0,19).c_str(),AMBER);bottom("Back: menu");}
+ return count;
+}
+
+void regDisplayRecord() {
+ String lines[REG_MAX_LINES];
+ const int count=regWrapLines(regTarget,lines);
+ const int pages=max(1,(count+2)/3);
+ const int page=(millis()/4000UL)%pages;
+ for(int i=0;i<3;i++) {
+  int index=page*3+i;
+  if(index<count)textAt(7,39+i*13,lines[index].c_str(),WHITE);
+ }
+ if(pages>1) {
+  String indicator=String(page+1)+"/"+String(pages);
+  textAt(100,29,indicator.c_str(),MUTED);
+ }
+ // Two lines reserved for the record ID, separate from the record name.
+ if(regRecordCode.length()) {
+  String code="ID: "+regRecordCode;
+  textAt(7,79,code.substring(0,REG_TEXT_CHARS).c_str(),SILVER);
+  if(code.length()>REG_TEXT_CHARS)
+   textAt(7,90,code.substring(REG_TEXT_CHARS,REG_TEXT_CHARS*2).c_str(),SILVER);
+ }
+ textAt(7,103,"Present a tag",SKY);
+ bottom("Back: dismiss");
+}
+
+void registrationScreen(){
+ display->fillScreen(BG);
+ header("Assign MakerTag");
+ if(regState==1) {
+  regDisplayRecord();
+ } else if(regState==2) {
+  textAt(7,37,"Scanned UID:",SILVER);
+  // 10-byte UIDs are 20 hexadecimal characters; show ALL bytes.
+  textAt(7,52,regUid.substring(0,REG_TEXT_CHARS).c_str(),WHITE);
+  if(regUid.length()>REG_TEXT_CHARS)
+   textAt(7,65,regUid.substring(REG_TEXT_CHARS,REG_TEXT_CHARS*2).c_str(),WHITE);
+  textAt(7,87,"Assign this tag?",SKY);
+  bottom("OK: save Back: no");
+ } else if(regState==3) {
+  textAt(7,54,"Registering...",SKY);
+  bottom("Please wait");
+ } else if(regState==4) {
+  textAt(7,48,"Tag assigned",GREEN);
+  bottom("Back: menu");
+ } else {
+  textAt(7,43,"Registration failed",AMBER);
+  String errors[REG_MAX_LINES];
+  int count=regWrapLines(regError,errors);
+  for(int i=0;i<count && i<3;i++)
+   textAt(7,58+i*13,errors[i].c_str(),WHITE);
+  bottom("Back: menu");
+ }
 }
 void render(){
  switch(page){
@@ -789,7 +829,7 @@ void loop(){
  mvLoop();mvHeartbeatLoop();
  regSchedulePoll();
  if(regState==1 && page!=REGISTRATION){scanResultVisible=false;lastPoll=0;page=REGISTRATION;render();}
- if(page==REGISTRATION && regState==1 && regTarget.length()>45){static uint32_t lastNamePage=UINT32_MAX;uint32_t currentNamePage=millis()/4000UL;if(currentNamePage!=lastNamePage){lastNamePage=currentNamePage;registrationScreen();}}
+ if(page==REGISTRATION && regState==1){static uint32_t lastNamePage=UINT32_MAX;uint32_t currentNamePage=millis()/4000UL;if(currentNamePage!=lastNamePage){lastNamePage=currentNamePage;registrationScreen();}}
  if(page==REGISTRATION && (regState==4||regState==5)){static uint8_t lastDrawn=0;if(lastDrawn!=regState){lastDrawn=regState;registrationScreen();}}
  processInputs();
  if(!readerInitDone && (uint32_t)(millis()-lastInputAt)>1100)readerInit();
