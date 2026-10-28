@@ -10,6 +10,7 @@
 #include "ui_icons.h"
 #include "provisioning.h"
 #include "connected_registration.h"
+#include "scan_lookup.h"
 
 // MakerVault handheld UI v0.5.1.14 -- ESP32-S3 SuperMini, Rev C.3
 // Shared hardware SPI, read-only RFID, all original GPIO assignments.
@@ -278,14 +279,29 @@ void simple(const char* title,const char* line1,const char* line2=""){
 void scanPage(){
  if(scanResultVisible){
   display->fillScreen(BG);header("Tag detected");
-  display->fillCircle(13,39,6,GREEN);textAt(27,36,"READ SUCCESS",GREEN);
-  textAt(7,57,"UID",SKY);textAt(7,70,recentUid.substring(0,20).c_str(),WHITE);
-  if(recentUid.length()>20)textAt(7,81,recentUid.substring(20,40).c_str(),WHITE);
-  textAt(7,94,recentType.substring(0,20).c_str(),SILVER);
+  display->fillCircle(12,35,5,GREEN);
+  textAt(23,32,"READ SUCCESS",GREEN);
+  textAt(7,49,"UID:",SKY);
+  // A 10-byte UID needs 20 characters: use a second line if necessary.
+  textAt(7,61,recentUid.substring(0,19).c_str(),WHITE);
+  if(recentUid.length()>19)textAt(7,73,recentUid.substring(19).c_str(),WHITE);
+  int y=recentUid.length()>19?86:77;
+  if(scanLookupState==1)textAt(7,y,"Checking MakerVault",SILVER);
+  else if(scanLookupState==2){
+   // Result name pages to avoid clipping on the small screen.
+   String label=scanLookupName;
+   int chars=19;
+   int pages=max(1,((int)label.length()+chars-1)/chars);
+   int page=(millis()/4000UL)%pages;
+   textAt(7,y,label.substring(page*chars,(page+1)*chars).c_str(),SKY);
+   if(scanLookupCode.length())textAt(7,y+12,scanLookupCode.substring(0,19).c_str(),SILVER);
+  }
+  else if(scanLookupState==3)textAt(7,y,"Not registered",AMBER);
+  else if(scanLookupState==4)textAt(7,y,scanLookupError.substring(0,19).c_str(),AMBER);
+  else textAt(7,y,recentType.substring(0,19).c_str(),SILVER);
   bottom("Confirm: rescan");return;
  }
  display->fillScreen(BG);header("Read tag");
- // Precisely centered scan card: x=9..119, y=32..108.
  display->fillRoundRect(9,32,110,76,9,CARD);
  display->drawRoundRect(9,32,110,76,9,BLUE);
  asset(41,37,MV_SCAN_LARGE,46,46);
@@ -732,7 +748,7 @@ void processInputs(){
   Serial.println("[BUTTON] CONFIRM");
   if(page==REGISTRATION && regState==2){regSubmit(regUid,regKind);registrationScreen();return;}
   if(page==HOME)choose();else if(page==CONTROLS)control("Confirm");
-  else if(page==SCAN){scanResultVisible=false;scanPage();}
+  else if(page==SCAN){scanResultVisible=false;scanLookupState=0;scanPage();}
   else if(page==DELETE_WIFI){
    // Resolve by SSID, not list index, to avoid deleting the wrong network.
    for(uint8_t i=0;i<knownCount;i++){
@@ -806,6 +822,7 @@ void pollTag(){
   regState=2;registrationScreen();return;
  }
  hasScanned=true;scanResultVisible=true;
+ scanLookupBegin(recentUid,rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_UL?"nfc":"rfid");
  Serial.printf("[RFID] UID=%s, Type=%s\n",recentUid.c_str(),recentType.c_str());
  scanPage();
 }
@@ -834,6 +851,7 @@ void loop(){
  processInputs();
  if(!readerInitDone && (uint32_t)(millis()-lastInputAt)>1100)readerInit();
  if(readerInitDone)pollTag();
+ if(page==SCAN && scanResultVisible){static uint8_t lastScanLookup=255;static uint32_t lastScanPaint=0;if(lastScanLookup!=scanLookupState || (scanLookupState==2 && millis()-lastScanPaint>4000)){lastScanLookup=scanLookupState;lastScanPaint=millis();scanPage();}}
  if((uint32_t)(millis()-footerChecked)>250){footerChecked=millis();refreshFooter();
   if(page==MV_PAIR && mvPairState==2){static uint32_t prevSecond=0;uint32_t second=(millis()-mvPairStarted)/1000;if(second!=prevSecond){prevSecond=second;mvPairPage();}}
   if(page==MV_PAIR){
