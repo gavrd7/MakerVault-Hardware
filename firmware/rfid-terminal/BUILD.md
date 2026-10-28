@@ -72,3 +72,7 @@ Available on the draft connected-terminal branch alongside MakerVault PR #150: M
 ## Version validation
 
 Firmware v0.5.1.14 is merged to `main` and the owner confirmed the terminal displays its updated version, heartbeat reporting is correct, and RFID/NFC, Wi-Fi, HTTPS/pairing and controls work as previously tested. The `MakerVault_Terminal_Firmware` source-folder name is historical, not the firmware version.
+
+## v0.6.0 connected-terminal release candidate
+
+Firmware PR #6 now identifies itself as **v0.6.0** in the sketch, System info and serial startup. The earlier **v0.5.1.14** firmware is still the published stable baseline. This candidate requires the coordinated MakerVault v1.4.0 application functionality (PR #150) for online lookup/registration/reassignment. The maintainer has already confirmed the earlier renamed-sketch candidate compiled and was flashed and tested physically; **the v0.6.0 metadata change still needs a Verify/upload and version-display check** before publishing. No physical tag-memory writes are implemented.
