@@ -89,18 +89,24 @@ bool regSubmit(const String &uid,const String &kind) {
 String regCancelId="";
 void regCancelTask(void *) {
   String response;
-  mvHttps("/api/device/v1/tag-registration/"+regCancelId+"/cancel/","POST","{}",response,true);
-  regCancelId="";
+  String cancelledId=regCancelId;
+  mvHttps("/api/device/v1/tag-registration/"+cancelledId+"/cancel/","POST","{}",response,true);
+  if(regCancelId==cancelledId)regCancelId="";
   mvTask=nullptr;vTaskDelete(nullptr);
+}
+void regScheduleCancel() {
+  if(regCancelId.length()!=36 || mvTask || !mvPairVerified ||
+     !mvEndpointApproved() || WiFi.status()!=WL_CONNECTED)return;
+  if(xTaskCreatePinnedToCore(regCancelTask,"mv_reg_cancel",12288,nullptr,1,&mvTask,0)!=pdPASS)
+    mvTask=nullptr;
 }
 void regReset();
 void regCancel() {
-  if(regState!=0 && regState!=4 && regId.length()==36 && !mvTask && mvEndpointApproved()) {
+  // Queue cancellation even if another HTTPS operation is currently using mvTask.
+  if(regState!=0 && regState!=4 && regId.length()==36)
     regCancelId=regId;
-    if(xTaskCreatePinnedToCore(regCancelTask,"mv_reg_cancel",12288,nullptr,1,&mvTask,0)!=pdPASS)
-      mvTask=nullptr;
-  }
   regReset();
+  regScheduleCancel();
 }
 void regReset() {
   regSuppressedId=regId;
