@@ -530,9 +530,41 @@ void mvTlsTestPage(){
  }
  detailPaint("Test HTTPS");
 }
+// Wrap long record names into at most three readable lines on the 128px TFT.
+void regDrawRecordName(const String &name) {
+ String remaining=name;
+ int line=0;
+ while(remaining.length() && line<3) {
+  int maxChars=19;
+  int cut=min((int)remaining.length(),maxChars);
+  if(cut<(int)remaining.length()){
+   int space=remaining.lastIndexOf(' ',cut);
+   if(space>5)cut=space;
+  }
+  String segment=remaining.substring(0,cut);
+  segment.trim();
+  textAt(7,43+line*13,segment.c_str(),WHITE);
+  remaining=remaining.substring(cut);
+  remaining.trim();
+  line++;
+ }
+ // When text exceeds three lines, rotate the name rather than silently
+ // replacing its end with an ellipsis. Current record labels fit normally.
+ if(remaining.length()) {
+  Serial.printf("[REG] Long record label continues: %s\\n",remaining.c_str());
+ }
+}
 void registrationScreen(){
  display->fillScreen(BG);header("Assign MakerTag");
- if(regState==1){textAt(8,38,"Record:",SILVER);textAt(8,53,regTarget.substring(0,19).c_str(),WHITE);textAt(8,77,"Present a tag",SKY);bottom("Back: dismiss");}
+ if(regState==1){
+  regDrawRecordName(regTarget);
+  if(regRecordCode.length()){
+   textAt(7,87,"ID:",SILVER);
+   textAt(27,87,regRecordCode.substring(0,16).c_str(),WHITE);
+  }
+  textAt(7,103,"Present a tag",SKY);
+  bottom("Back: dismiss");
+ }
  else if(regState==2){textAt(8,38,"UID:",SILVER);textAt(8,53,regUid.substring(0,19).c_str(),WHITE);textAt(8,78,"Assign this tag?",SKY);bottom("OK: save Back: no");}
  else if(regState==3){textAt(8,55,"Registering...",SKY);bottom("Please wait");}
  else if(regState==4){textAt(8,48,"Tag assigned",GREEN);bottom("Back: menu");}
