@@ -54,6 +54,7 @@ uint32_t lastInputAt=0;
 const int8_t decode[16]={0,-1,1,0,1,0,0,-1,-1,0,0,1,0,1,-1,0};
 uint8_t previousAB=0;
 int8_t stepCount=0;
+uint32_t lastEncoderTurnAt=0;
 
 struct Key {
  uint8_t pin; bool raw=true,stable=true;uint32_t changed=0;
@@ -759,9 +760,12 @@ void processInputs(){
  // Only meaningful menu input defers reader setup.
  const int oldSelection=selected; const Page oldPage=page;
  uint8_t ab=(digitalRead(ENC_A)<<1)|digitalRead(ENC_B);
- if(ab!=previousAB){stepCount+=decode[(previousAB<<2)|ab];previousAB=ab;
+ if(ab!=previousAB){lastEncoderTurnAt=millis();stepCount+=decode[(previousAB<<2)|ab];previousAB=ab;
   if(stepCount>=2||stepCount<=-2){int dir=stepCount>0?1:-1;stepCount=0;move(dir);}}
- if(selectKey.pressed()){
+ const bool selectPressed=selectKey.pressed();
+ // KY-040 push-switch contact can briefly chatter while its shaft rotates.
+ // Consume the debounced event, but never turn rotation into a select action.
+ if(selectPressed && (uint32_t)(millis()-lastEncoderTurnAt)>=180){
   Serial.println("[BUTTON] SELECT");
   if(page==KNOWN_WIFI && knownCount && networkSelected<knownCount){
    pendingDeleteSSID=knownSSID[networkSelected];page=DELETE_WIFI;render();
