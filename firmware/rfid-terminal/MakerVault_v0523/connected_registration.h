@@ -30,13 +30,19 @@ void regCompleteTask(void *) {
                      "POST",payload,response,true);
   if(status==201||status==200) {regState=4;regError="";}
   else {
-    if(status==409 && response.indexOf("\"reassign_required\": true")>=0 ||
-       status==409 && response.indexOf("\"reassign_required\":true")>=0) {
+    if(status==409 && (response.indexOf("\"reassign_required\": true")>=0 ||
+       response.indexOf("\"reassign_required\":true")>=0)) {
       regReassignToken=mvField(response,"reassign_token");
       regPreviousLabel=mvField(response,"current_label");
       if(regReassignToken.length()) {regState=6;mvTask=nullptr;vTaskDelete(nullptr);return;}
     }
-    if(status==409)regError="Tag already in use";
+    if(status==409) {
+      String serverError=mvField(response,"error");
+      if(serverError=="Already assigned to this item.")regError="Already assigned to this item";
+      else if(serverError=="Reassignment confirmation expired or invalid.")regError="Confirmation expired";
+      else if(serverError.length())regError=serverError;
+      else regError="Tag conflict";
+    }
     else if(status==410)regError="Request expired";
     else if(status==403||status==401)regError="Access denied";
     else regError="Registration failed";
