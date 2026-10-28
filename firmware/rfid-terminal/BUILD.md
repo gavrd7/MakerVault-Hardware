@@ -1,6 +1,6 @@
 # Build the MakerVault RFID/NFC handheld
 
-**Latest tested firmware:** v0.5.1.14 — version reporting corrected, flashed and regression-tested on physical hardware; v0.5.1.13 is the original acceptance baseline. Source in [MakerVault_Terminal_Firmware](MakerVault_Terminal_Firmware/). **The firmware is a tested candidate, not an Arduino-CI-verified published binary.**
+**Current tested firmware:** v0.6.0 — online Maker Tag UID lookup, registration, reassignment and cancellation, compiled and flashed to physical hardware; v0.5.1.14 remains the prior acceptance baseline. Source in [MakerVault_Terminal_Firmware](MakerVault_Terminal_Firmware/). **The firmware is a tested candidate, not an Arduino-CI-verified published binary.**
 
 ## Hardware
 
@@ -71,8 +71,8 @@ Available on the draft connected-terminal branch alongside MakerVault PR #150: M
 
 ## Version validation
 
-Firmware v0.5.1.14 is merged to `main` and the owner confirmed the terminal displays its updated version, heartbeat reporting is correct, and RFID/NFC, Wi-Fi, HTTPS/pairing and controls work as previously tested. The `MakerVault_Terminal_Firmware` source-folder name is historical, not the firmware version.
+The prior firmware v0.5.1.14 was merged to `main` and the owner confirmed the terminal displays its updated version, heartbeat reporting is correct, and RFID/NFC, Wi-Fi, HTTPS/pairing and controls work as previously tested. The `MakerVault_Terminal_Firmware` source-folder name is historical, not the firmware version.
 
-## v0.6.0 connected-terminal release candidate
+## v0.6.0 connected-terminal release
 
-Firmware PR #6 now identifies itself as **v0.6.0** in the sketch, System info and serial startup. The earlier **v0.5.1.14** firmware is still the published stable baseline. This candidate requires the coordinated MakerVault v1.4.0 application functionality (PR #150) for online lookup/registration/reassignment. The maintainer has already confirmed the earlier renamed-sketch candidate compiled and was flashed and tested physically; **the v0.6.0 metadata change still needs a Verify/upload and version-display check** before publishing. No physical tag-memory writes are implemented.
+The released firmware identifies itself as **v0.6.0** in the sketch, System info and serial startup. The earlier **v0.5.1.14** firmware is still the published stable baseline. This candidate requires the coordinated MakerVault v1.4.0 application functionality (PR #150) for online lookup/registration/reassignment. The maintainer has already confirmed the earlier renamed-sketch candidate compiled and was flashed and tested physically; **v0.6.0 has been flashed and its version display confirmed by the maintainer** before publishing. No physical tag-memory writes are implemented.

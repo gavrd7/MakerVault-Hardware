@@ -1,6 +1,6 @@
 # Public release checklist
 
-Status: **PRE-PUBLICATION — keep repository private until reviewed**.
+Status: **HISTORICAL PUBLICATION CHECKLIST — repository is public**. Retained as a record of the original release process, not current instructions to make the repository private.
 
 - [x] Firmware v0.5.1.14 merged and physically tested; confirmed RFID/NFC, Wi-Fi, HTTPS/pairing, controls and correct version reporting
 - [x] Tested source and bundled QRCode MIT sources committed on `main`

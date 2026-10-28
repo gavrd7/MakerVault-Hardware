@@ -1,6 +1,6 @@
 # Flashing and validating the MakerVault handheld firmware
 
-This guide refers to **v0.5.1.14**, the current merged and physically tested firmware in [MakerVault_Terminal_Firmware](MakerVault_Terminal_Firmware/). v0.5.1.13 was the original acceptance baseline; v0.5.1.14 corrected only version-reporting metadata. No downloadable binary or clean-machine reproducible build has been verified.
+This guide covers **v0.6.0**, the current published and physically tested firmware in [MakerVault_Terminal_Firmware](MakerVault_Terminal_Firmware/). v0.5.1.13 was the original acceptance baseline; v0.5.1.14 corrected only version-reporting metadata. No downloadable binary or clean-machine reproducible build has been verified.
 
 ## Prepare Arduino IDE
 
@@ -13,7 +13,7 @@ This guide refers to **v0.5.1.14**, the current merged and physically tested fir
 
 ## First boot and functional acceptance
 
-With the enclosure open, watch Serial Monitor at **115200** and confirm TFT splash/menu. For the merged v0.5.1.14 firmware, System info and heartbeat version reporting have been confirmed by the owner.
+With the enclosure open, watch Serial Monitor at **115200** and confirm TFT splash/menu. For the previous v0.5.1.14 firmware, System info and heartbeat version reporting have been confirmed by the owner.
 
 1. Confirm screen backlight, orientation, menu text, and **no uncontrolled reset/reboot**.
 2. Rotate the encoder both ways, then independently press encoder-select, Back and Confirm.
@@ -22,7 +22,7 @@ With the enclosure open, watch Serial Monitor at **115200** and confirm TFT spla
 5. In **Connections → MakerVault**, set the **HTTPS** base URL. For a self-signed/private Local CA, import its **public CA certificate** via the setup workflow; never place a CA private key on the device. Run the built-in HTTPS test. No `setInsecure()` fallback should be used.
 6. On MakerVault: **Settings → User Account → Connected Devices → Add Device**. Start Pair Device on the handheld, then approve the displayed **eight-digit pairing code** in the web wizard before expiry. Verify paired status and heartbeat; reboot and check persistence. Credentials are stored in device NVS but **NVS encryption/secure boot were not verified**. Terminal-side Forget pairing is local-only; revoke from MakerVault if necessary.
 
-**Draft PR #6 capabilities with MakerVault app PR #150:** UID scanning and online MakerTag resolution, browser-initiated registration and reassignment with terminal confirmation, paired HTTPS, session cancellation and recovery. **Not implemented:** physical writing to NFC/RFID tag memory, Creality CFS payload decode, OTA updates. The published v0.5.1.14 baseline on main has fewer features.
+**v0.6.0 capabilities with MakerVault v1.4.0:** UID scanning and online MakerTag resolution, browser-initiated registration and reassignment with terminal confirmation, paired HTTPS, session cancellation and recovery. **Not implemented:** physical writing to NFC/RFID tag memory, Creality CFS payload decode, OTA updates. The preceding v0.5.1.14 baseline has fewer features.
 
 ## Troubleshooting
 
@@ -37,10 +37,10 @@ With the enclosure open, watch Serial Monitor at **115200** and confirm TFT spla
 | Wi-Fi setup unavailable | Confirm 2.4 GHz, local AP/portal status, power, and local network reachability |
 | HTTPS rejected | Validate host/IP against certificate SAN, correct trusted Local CA/public roots, valid device date/time; do **not** disable certificate validation |
 | Pairing never gets code | Confirm backend HTTPS reachability and server wizard; inspect TLS diagnostics before retrying |
-| Metadata says older version | Confirm you are flashing current v0.5.1.14 from main, not the older v0.5.1.13 source |
+| Metadata says older version | Confirm you are flashing v0.6.0 from the current source, not the older v0.5.1.13 or v0.5.1.14 releases |
 
 > **Build reproducibility outstanding:** A hardware user has already confirmed the firmware features work, but an independent clean Arduino install and pinned third-party dependency versions have not yet been verified. No precompiled binary or OTA package is claimed.
 
-## v0.6.0 candidate verification (PR #6)
+## v0.6.0 version verification
 
-For the connected-terminal candidate, open `MakerVault_Terminal_Firmware/MakerVault_Terminal_Firmware.ino` from this PR branch. After flashing, confirm **v0.6.0** appears in System info and the 115200-baud serial startup message, and that online Maker Tag lookup, registration, cancellation and reassignment still work with the matching MakerVault branch. Firmware v0.5.1.14 remains the public stable baseline until v0.6.0 is published. This firmware does not write NFC/RFID tag memory.
+For the connected-terminal candidate, open `MakerVault_Terminal_Firmware/MakerVault_Terminal_Firmware.ino` from the v0.6.0 release source. After flashing, confirm **v0.6.0** appears in System info and the 115200-baud serial startup message, and that online Maker Tag lookup, registration, cancellation and reassignment still work with the matching MakerVault branch. Firmware v0.5.1.14 is retained as the earlier stable baseline. This firmware does not write NFC/RFID tag memory.
