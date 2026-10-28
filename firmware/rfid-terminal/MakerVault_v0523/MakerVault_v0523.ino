@@ -537,7 +537,7 @@ constexpr int REG_MAX_LINES=20;
 
 // Split at word boundaries; unusually long words are broken at the margin.
 // A label may exceed one screen, so page through all its lines every 4s.
-int regWrapLines(const String &source,String (&lines)[REG_MAX_LINES]) {
+int regWrapLines(const String &source, String *lines) {
  String pending=source;
  pending.trim();
  int count=0;
