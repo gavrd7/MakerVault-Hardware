@@ -900,6 +900,8 @@ void loop(){
  provisioningLoop();
  mvLoop();mvHeartbeatLoop();
  regSchedulePoll();
+ regCheckStatus();
+ if(regServerClosed && page==REGISTRATION){regReset();page=MAKERTAGS_MENU;render();}
  remoteLookupPoll();
  if(remoteLookupState==1 && page!=LOOKUP_REQUEST && regState==0){page=LOOKUP_REQUEST;lastPoll=0;render();}
  if(page==LOOKUP_REQUEST){static uint8_t lastRemoteState=255;if(lastRemoteState!=remoteLookupState){lastRemoteState=remoteLookupState;remoteLookupScreen();}}
