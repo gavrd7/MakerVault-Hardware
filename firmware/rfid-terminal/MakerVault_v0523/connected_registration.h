@@ -3,7 +3,8 @@
 // Reuses the paired MakerVault HTTPS client, scoped credential and task slot.
 String regId="", regTarget="", regRecordCode="", regUid="", regKind="", regError="", regSuppressedId="", regReassignToken="", regPreviousLabel="";
 volatile uint8_t regState=0; // 0 idle; 1 request ready; 2 tag scanned; 3 sending; 4 success; 5 error; 6 reassign confirmation
-uint32_t regLastCheck=0;
+uint32_t regLastCheck=0,regLastStatusCheck=0;
+volatile bool regServerClosed=false;
 
 void regPendingTask(void *) {
   String body;
@@ -50,6 +51,24 @@ void regCompleteTask(void *) {
   }
   mvTask=nullptr;vTaskDelete(nullptr);
 }
+void regStatusTask(void *) {
+  String response;
+  int code=mvHttps("/api/device/v1/tag-registration/"+regId+"/status/","GET","",response,true);
+  if(code==200) {
+    if(response.indexOf("\"state\": \"cancelled\"")>=0 || response.indexOf("\"state\":\"cancelled\"")>=0 ||
+       response.indexOf("\"state\": \"expired\"")>=0 || response.indexOf("\"state\":\"expired\"")>=0)
+      regServerClosed=true;
+  }
+  mvTask=nullptr;vTaskDelete(nullptr);
+}
+void regCheckStatus() {
+  if((regState!=1 && regState!=2 && regState!=6) || mvTask || regId.length()!=36 ||
+     !mvPairVerified || !mvEndpointApproved() || WiFi.status()!=WL_CONNECTED)return;
+  if((uint32_t)(millis()-regLastStatusCheck)<3000)return;
+  regLastStatusCheck=millis();
+  if(xTaskCreatePinnedToCore(regStatusTask,"mv_reg_state",12288,nullptr,1,&mvTask,0)!=pdPASS)
+    mvTask=nullptr;
+}
 void regSchedulePoll() {
   if(regState!=0||mvTask||mvCheckState!=3||!mvPairVerified||!mvCanWriteTags||
      !mvEndpointApproved()||WiFi.status()!=WL_CONNECTED)return;
@@ -85,5 +104,5 @@ void regCancel() {
 }
 void regReset() {
   regSuppressedId=regId;
-  regState=0;regId="";regUid="";regKind="";regTarget="";regRecordCode="";regError="";regReassignToken="";regPreviousLabel="";regLastCheck=millis();
+  regState=0;regId="";regUid="";regKind="";regTarget="";regRecordCode="";regError="";regReassignToken="";regPreviousLabel="";regServerClosed=false;regLastCheck=millis();
 }
