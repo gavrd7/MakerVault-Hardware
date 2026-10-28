@@ -11,6 +11,7 @@
 #include "provisioning.h"
 #include "connected_registration.h"
 #include "scan_lookup.h"
+#include "remote_lookup.h"
 
 // MakerVault handheld UI v0.5.1.14 -- ESP32-S3 SuperMini, Rev C.3
 // Shared hardware SPI, read-only RFID, all original GPIO assignments.
@@ -32,7 +33,7 @@ constexpr uint16_t BG=0x0843, CARD=0x10C6, NAVY=0x10ED,
 // Write actions remain feature gated until fully implemented. API scope alone
 // never authorises a placeholder to appear as a working device operation.
 constexpr bool MAKERTAG_CREATE_IMPLEMENTED=false, RFID_WRITE_IMPLEMENTED=false;
-enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION};
+enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST};
 Page page=HOME;
 const char* choices[]={"MakerTags","RFID Tags","Connections","System info"};
 int subSelected=0, detailScroll=0, detailCount=0;
@@ -276,38 +277,57 @@ void simple(const char* title,const char* line1,const char* line2=""){
  if(line2[0])textAt(13,72,line2,MUTED);
  bottom("Back: menu");
 }
+// Draw a prominent record identity, then the MakerVault ID; UID is secondary.
 void scanPage(){
- if(scanResultVisible){
-  display->fillScreen(BG);header("Tag detected");
-  display->fillCircle(12,35,5,GREEN);
-  textAt(23,32,"READ SUCCESS",GREEN);
-  textAt(7,49,"UID:",SKY);
-  // A 10-byte UID needs 20 characters: use a second line if necessary.
-  textAt(7,61,recentUid.substring(0,19).c_str(),WHITE);
-  if(recentUid.length()>19)textAt(7,73,recentUid.substring(19).c_str(),WHITE);
-  int y=recentUid.length()>19?86:77;
-  if(scanLookupState==1)textAt(7,y,"Checking MakerVault",SILVER);
-  else if(scanLookupState==2){
-   // Result name pages to avoid clipping on the small screen.
-   String label=scanLookupName;
-   int chars=19;
-   int pages=max(1,((int)label.length()+chars-1)/chars);
-   int page=(millis()/4000UL)%pages;
-   textAt(7,y,label.substring(page*chars,(page+1)*chars).c_str(),SKY);
-   if(scanLookupCode.length())textAt(7,y+12,scanLookupCode.substring(0,19).c_str(),SILVER);
-  }
-  else if(scanLookupState==3)textAt(7,y,"Not registered",AMBER);
-  else if(scanLookupState==4)textAt(7,y,scanLookupError.substring(0,19).c_str(),AMBER);
-  else textAt(7,y,recentType.substring(0,19).c_str(),SILVER);
-  bottom("Confirm: rescan");return;
+ display->fillScreen(BG);
+ if(!scanResultVisible){
+  header("Read tag");
+  display->fillRoundRect(9,32,110,76,9,CARD);
+  display->drawRoundRect(9,32,110,76,9,BLUE);
+  asset(41,37,MV_SCAN_LARGE,46,46);
+  centeredAt(78,"READY TO SCAN",WHITE);
+  centeredAt(92,"Present a tag",SKY);
+  bottom("Back: menu");return;
  }
- display->fillScreen(BG);header("Read tag");
- display->fillRoundRect(9,32,110,76,9,CARD);
- display->drawRoundRect(9,32,110,76,9,BLUE);
- asset(41,37,MV_SCAN_LARGE,46,46);
- centeredAt(78,"READY TO SCAN",WHITE);
- centeredAt(92,"Present a tag",SKY);
- bottom("Back: menu");
+ header("Tag detected");
+ if(scanLookupState==2){
+  String nameLines[20];
+  int count=regWrapLines(scanLookupName,nameLines);
+  int maxLines=min(3,count);
+  for(int i=0;i<maxLines;i++)textAt(7,36+i*13,nameLines[i].c_str(),WHITE);
+  // The full identifier must fit: MV- plus eight hex chars.
+  textAt(7,79,scanLookupCode.c_str(),SKY);
+ }else if(scanLookupState==3){
+  display->drawCircle(64,53,17,AMBER);
+  textAt(60,45,"?",AMBER);
+  centeredAt(82,"Not registered",AMBER);
+ }else if(scanLookupState==1){
+  centeredAt(62,"Checking tag...",SKY);
+ }else if(scanLookupState==4){
+  centeredAt(57,"Lookup unavailable",AMBER);
+ }else{
+  centeredAt(52,"TAG READ",GREEN);
+  textAt(7,74,recentType.substring(0,19).c_str(),SILVER);
+ }
+ // UID remains visible, small and lower priority.
+ textAt(7,100,recentUid.substring(0,19).c_str(),SILVER);
+ bottom("Confirm: rescan");
+}
+void remoteLookupScreen(){
+ display->fillScreen(BG);header("Find MakerTag");
+ if(remoteLookupState==1){
+  centeredAt(60,"Present a tag",SKY);
+  bottom("Back: dismiss");
+ }else if(remoteLookupState==2){
+  centeredAt(60,"Looking up...",SKY);
+  bottom("Please wait");
+ }else if(remoteLookupState==3){
+  centeredAt(55,"Scan complete",GREEN);
+  bottom("Back: menu");
+ }else{
+  centeredAt(55,"Lookup failed",AMBER);
+  bottom("Back: menu");
+ }
 }
 void connectionRow(int i){
  const char* menu[]={"Wi-Fi","MakerVault"};
@@ -629,6 +649,7 @@ void render(){
   case HOME:home();break;
   case SCAN:scanPage();break;
   case REGISTRATION:registrationScreen();break;
+  case LOOKUP_REQUEST:remoteLookupScreen();break;
   case RECENT: simple("Recent tag","Not available");break;
   case CONTROLS:simple("Control test","Turn / press", "Back exits");break;
   case CONNECTIONS:connections();break;
@@ -723,6 +744,7 @@ void choose(){
  Serial.print("[MENU] Selected: ");Serial.println(choices[selected]);render();
 }
 void back(){
+ if(page==LOOKUP_REQUEST && remoteLookupState!=2){remoteLookupReset();page=MAKERTAGS_MENU;render();return;}
  if(page==REGISTRATION && regState!=3){regReset();page=MAKERTAGS_MENU;render();return;}
  Serial.println("[BUTTON] BACK");if(page==DELETE_WIFI){pendingDeleteSSID="";page=KNOWN_WIFI;render();return;}if(page==SETUP_WIFI || page==MAKERVAULT_SETUP){if(lanPortalActive)stopPortal();page=(page==SETUP_WIFI)?WIFI_MENU:MV_MENU;render();return;}if(page==KNOWN_WIFI||page==WIFI_STATUS){page=WIFI_MENU;render();return;}
  if(page==MV_PAIR){if(mvPairState==1||mvPairState==2)mvCancelPairing();page=MV_MENU;render();return;}
@@ -799,7 +821,7 @@ void readerInit(){
 }
 
 void pollTag(){
- if((page!=SCAN && !(page==REGISTRATION && regState==1))||(page==SCAN && scanResultVisible)||(uint32_t)(millis()-lastPoll)<100)return;
+ if((page!=SCAN && !(page==REGISTRATION && regState==1) && !(page==LOOKUP_REQUEST && remoteLookupState==1))||(page==SCAN && scanResultVisible)||(uint32_t)(millis()-lastPoll)<100)return;
  lastPoll=millis();digitalWrite(TFT_CS,HIGH);
  if(!rfid.PICC_IsNewCardPresent()||!rfid.PICC_ReadCardSerial())return;
  String uid="";
@@ -809,6 +831,11 @@ void pollTag(){
  uid.toUpperCase();recentUid=uid;
  recentType=String(rfid.PICC_GetTypeName(rfid.PICC_GetType(rfid.uid.sak)));
  rfid.PICC_HaltA();rfid.PCD_StopCrypto1();
+ if(page==LOOKUP_REQUEST){
+  auto family=rfid.PICC_GetType(rfid.uid.sak);
+  remoteLookupSubmit(uid,family==MFRC522::PICC_TYPE_MIFARE_UL?"nfc":"rfid");
+  remoteLookupScreen();return;
+ }
  if(page==REGISTRATION){
   // RC522 card-family detection cannot distinguish NTAG215 from all
   // other Type 2 / Ultralight-compatible tags. Validate model separately
@@ -845,6 +872,9 @@ void loop(){
  provisioningLoop();
  mvLoop();mvHeartbeatLoop();
  regSchedulePoll();
+ remoteLookupPoll();
+ if(remoteLookupState==1 && page!=LOOKUP_REQUEST && regState==0){page=LOOKUP_REQUEST;lastPoll=0;render();}
+ if(page==LOOKUP_REQUEST && (remoteLookupState==3||remoteLookupState==4)){static uint8_t lastRemoteState=0;if(lastRemoteState!=remoteLookupState){lastRemoteState=remoteLookupState;remoteLookupScreen();}}
  if(regState==1 && page!=REGISTRATION){scanResultVisible=false;lastPoll=0;page=REGISTRATION;render();}
  if(page==REGISTRATION && regState==1){static uint32_t lastNamePage=UINT32_MAX;uint32_t currentNamePage=millis()/4000UL;if(currentNamePage!=lastNamePage){lastNamePage=currentNamePage;registrationScreen();}}
  if(page==REGISTRATION && (regState==4||regState==5)){static uint8_t lastDrawn=0;if(lastDrawn!=regState){lastDrawn=regState;registrationScreen();}}
