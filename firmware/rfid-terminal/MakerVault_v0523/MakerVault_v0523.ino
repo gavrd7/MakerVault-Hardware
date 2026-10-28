@@ -305,6 +305,8 @@ void scanPage(){
   // high-contrast white help glyph, rather than an outlined circle.
   display->fillCircle(64,54,20,AMBER);
   textAt(58,46,"?",WHITE,2);
+  // Restore normal text size before centeredAt measures the label bounds.
+  display->setTextSize(1);
   centeredAt(78,"Not",AMBER);
   centeredAt(90,"registered",AMBER);
  }else if(scanLookupState==1){
