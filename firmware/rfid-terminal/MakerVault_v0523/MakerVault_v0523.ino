@@ -635,6 +635,12 @@ void registrationScreen(){
    textAt(7,65,regUid.substring(REG_TEXT_CHARS,REG_TEXT_CHARS*2).c_str(),WHITE);
   textAt(7,87,"Assign this tag?",SKY);
   bottom("OK: save Back: no");
+ } else if(regState==6) {
+  textAt(7,34,"Already registered",AMBER);
+  textAt(7,49,regPreviousLabel.substring(0,19).c_str(),WHITE);
+  textAt(7,65,"Reassign to:",SILVER);
+  textAt(7,79,regTarget.substring(0,19).c_str(),WHITE);
+  bottom("OK: reassign Back: no");
  } else if(regState==3) {
   textAt(7,54,"Registering...",SKY);
   bottom("Please wait");
@@ -777,7 +783,7 @@ void processInputs(){
  if(backKey.pressed())back();
  if(confirmKey.pressed()){
   Serial.println("[BUTTON] CONFIRM");
-  if(page==REGISTRATION && regState==2){regSubmit(regUid,regKind);registrationScreen();return;}
+  if(page==REGISTRATION && (regState==2||regState==6)){regSubmit(regUid,regKind);registrationScreen();return;}
   if(page==HOME)choose();else if(page==CONTROLS)control("Confirm");
   else if(page==SCAN){scanResultVisible=false;scanLookupState=0;scanPage();}
   else if(page==DELETE_WIFI){
@@ -886,7 +892,7 @@ void loop(){
  if(page==LOOKUP_REQUEST){static uint8_t lastRemoteState=255;if(lastRemoteState!=remoteLookupState){lastRemoteState=remoteLookupState;remoteLookupScreen();}}
  if(regState==1 && page!=REGISTRATION){scanResultVisible=false;lastPoll=0;page=REGISTRATION;render();}
  if(page==REGISTRATION && regState==1){static uint32_t lastNamePage=UINT32_MAX;uint32_t currentNamePage=millis()/4000UL;if(currentNamePage!=lastNamePage){lastNamePage=currentNamePage;registrationScreen();}}
- if(page==REGISTRATION && (regState==4||regState==5)){static uint8_t lastDrawn=0;if(lastDrawn!=regState){lastDrawn=regState;registrationScreen();}}
+ if(page==REGISTRATION && (regState==4||regState==5||regState==6)){static uint8_t lastDrawn=0;if(lastDrawn!=regState){lastDrawn=regState;registrationScreen();}}
  processInputs();
  if(!readerInitDone && (uint32_t)(millis()-lastInputAt)>1100)readerInit();
  if(readerInitDone)pollTag();
