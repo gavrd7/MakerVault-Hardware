@@ -319,16 +319,19 @@ void scanPage(){
 void remoteLookupScreen(){
  display->fillScreen(BG);header("Find MakerTag");
  if(remoteLookupState==1){
-  centeredAt(60,"Present a tag",SKY);
+  centeredAt(48,"Request received",GREEN);
+  centeredAt(68,"Present a tag",SKY);
   bottom("Back: dismiss");
  }else if(remoteLookupState==2){
   centeredAt(60,"Looking up...",SKY);
   bottom("Please wait");
  }else if(remoteLookupState==3){
-  centeredAt(55,"Scan complete",GREEN);
+  centeredAt(48,"Lookup complete",GREEN);
+  centeredAt(68,"Check MakerVault",SKY);
   bottom("Back: menu");
  }else{
-  centeredAt(55,"Lookup failed",AMBER);
+  centeredAt(48,"Lookup failed",AMBER);
+  textAt(7,71,remoteLookupError.substring(0,19).c_str(),SILVER);
   bottom("Back: menu");
  }
 }
@@ -880,7 +883,7 @@ void loop(){
  regSchedulePoll();
  remoteLookupPoll();
  if(remoteLookupState==1 && page!=LOOKUP_REQUEST && regState==0){page=LOOKUP_REQUEST;lastPoll=0;render();}
- if(page==LOOKUP_REQUEST && (remoteLookupState==3||remoteLookupState==4)){static uint8_t lastRemoteState=0;if(lastRemoteState!=remoteLookupState){lastRemoteState=remoteLookupState;remoteLookupScreen();}}
+ if(page==LOOKUP_REQUEST){static uint8_t lastRemoteState=255;if(lastRemoteState!=remoteLookupState){lastRemoteState=remoteLookupState;remoteLookupScreen();}}
  if(regState==1 && page!=REGISTRATION){scanResultVisible=false;lastPoll=0;page=REGISTRATION;render();}
  if(page==REGISTRATION && regState==1){static uint32_t lastNamePage=UINT32_MAX;uint32_t currentNamePage=millis()/4000UL;if(currentNamePage!=lastNamePage){lastNamePage=currentNamePage;registrationScreen();}}
  if(page==REGISTRATION && (regState==4||regState==5)){static uint8_t lastDrawn=0;if(lastDrawn!=regState){lastDrawn=regState;registrationScreen();}}
