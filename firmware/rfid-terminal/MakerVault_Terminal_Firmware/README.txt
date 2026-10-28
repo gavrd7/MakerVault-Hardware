@@ -31,3 +31,5 @@ has not been verified. QRCode qrcode.c/qrcode.h retain third-party MIT notice.
 
 Draft release gate: compile the RENAMED sketch and run final regression tests
 before merging PR #6 or app PR #150.
+
+NEXT RELEASE CANDIDATE: v0.6.0 (PR #6). The sketch reports v0.6.0; previously published firmware v0.5.1.14 remains the stable baseline until release. Retest flashing and the displayed version after this version-only change. No NDEF/CFS tag-memory writing.
