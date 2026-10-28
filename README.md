@@ -44,3 +44,5 @@ A filament weigh station is planned. Final Rev3 enclosure STL, STEP, 3MF and CAD
 ## Responsible distribution
 
 Do not commit credentials, provisioning logs with secrets, local CA private keys or personal network details. Do not publish before reviewing historical commits and the provenance/licensing of embedded icon and brand images.
+
+**Next firmware release candidate: v0.6.0 (PR #6).** This branch now reports v0.6.0 on its device information screen and serial output. It adds Maker Tag UID lookup, browser-initiated registration, explicit reassignment, and request cancellation/recovery. It is not released until the PR merges and a release is published. The published stable firmware remains v0.5.1.14. Physical tag-memory writes, NDEF encoding, and Creality CFS payload writing are not supported.
