@@ -1,6 +1,6 @@
 # Build the MakerVault RFID/NFC handheld
 
-**Latest tested firmware:** v0.5.1.14 — version reporting corrected, flashed and regression-tested on physical hardware; v0.5.1.13 is the original acceptance baseline. Source in [MakerVault_v0523](MakerVault_v0523/). **The firmware is a tested candidate, not an Arduino-CI-verified published binary.**
+**Latest tested firmware:** v0.5.1.14 — version reporting corrected, flashed and regression-tested on physical hardware; v0.5.1.13 is the original acceptance baseline. Source in [MakerVault_Terminal_Firmware](MakerVault_Terminal_Firmware/). **The firmware is a tested candidate, not an Arduino-CI-verified published binary.**
 
 ## Hardware
 
@@ -46,17 +46,20 @@ In Arduino IDE install supported versions of:
 Keep all files in the **same sketch folder**:
 
 ```text
-MakerVault_v0523/
-  MakerVault_v0523.ino
+MakerVault_Terminal_Firmware/
+  MakerVault_Terminal_Firmware.ino
   maker_backend.h
   provisioning.h
+  connected_registration.h
+  scan_lookup.h
+  remote_lookup.h
   brand_images.h
   ui_icons.h
   qrcode.c
   qrcode.h
 ```
 
-Open `MakerVault_v0523.ino`, select the ESP32-S3 serial port, compile and upload over USB. Confirm secure HTTPS operation with the correct MakerVault Local CA before pairing.
+Open `MakerVault_Terminal_Firmware.ino`, select the ESP32-S3 serial port, compile and upload over USB. Confirm secure HTTPS operation with the correct MakerVault Local CA before pairing.
 
 **Do not use insecure TLS**, expose the LAN provisioning portal to the public internet, or commit actual Wi-Fi/API credentials.
 
@@ -64,8 +67,8 @@ Open `MakerVault_v0523.ino`, select the ESP32-S3 serial port, compile and upload
 
 Working: UID/type scanning of compatible RFID/NFC tags, multi-SSID 2.4 GHz Wi-Fi, MakerVault secure pairing-v1, CA management, HTTPS diagnostics, heartbeats, persistent credentials and TFT navigation.
 
-Not implemented: MakerTag record resolution, registering/assigning MakerTags, reading Creality CFS payload details, physical RFID writing, OTA firmware update, comprehensive factory reset. The experimental hardware has not been independently certified.
+Available on the draft connected-terminal branch alongside MakerVault PR #150: MakerTag UID resolution, browser-initiated registration and physical-confirmed reassignment, read-only browser lookup, cancellation and recovery. Not implemented: reading Creality CFS payload details, physical RFID/NDEF writing, OTA firmware update, comprehensive factory reset. The experimental hardware has not been independently certified.
 
 ## Version validation
 
-Firmware v0.5.1.14 is merged to `main` and the owner confirmed the terminal displays its updated version, heartbeat reporting is correct, and RFID/NFC, Wi-Fi, HTTPS/pairing and controls work as previously tested. The `MakerVault_v0523` source-folder name is historical, not the firmware version.
+Firmware v0.5.1.14 is merged to `main` and the owner confirmed the terminal displays its updated version, heartbeat reporting is correct, and RFID/NFC, Wi-Fi, HTTPS/pairing and controls work as previously tested. The `MakerVault_Terminal_Firmware` source-folder name is historical, not the firmware version.
