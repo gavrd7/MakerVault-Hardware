@@ -15,7 +15,7 @@ void scanLookupTask(void *) {
    int targetPos=response.indexOf("\"target\"");
    String targetSection=targetPos>=0?response.substring(targetPos):"";
    scanLookupName=mvField(targetSection,"label");
-   scanLookupCode=mvField(targetSection,"subtitle");
+   scanLookupCode=mvField(response,"maker_tag_id");
    if(scanLookupName.isEmpty())scanLookupName=mvField(response,"label");
    scanLookupState=2;
  } else if(status==200) {
