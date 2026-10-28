@@ -15,9 +15,9 @@ Firmware and hardware documentation for [MakerVault](https://github.com/gavrd7/M
 
 ## RFID/NFC handheld terminal
 
-**Latest hardware-tested firmware:** v0.5.1.14 (merged to main; v0.5.1.13 remains the original acceptance baseline) (ESP32-S3 SuperMini, MFRC522 SPI, ST7735S 128×128 TFT, KY-040 encoder and two buttons).
+**Published baseline firmware:** v0.5.1.14 (merged to main; v0.5.1.13 remains the original acceptance baseline) (ESP32-S3 SuperMini, MFRC522 SPI, ST7735S 128×128 TFT, KY-040 encoder and two buttons).
 
-- [Arduino source](firmware/rfid-terminal/MakerVault_v0523/)
+- [Arduino source](firmware/rfid-terminal/MakerVault_Terminal_Firmware/)
 - [Firmware build setup](firmware/rfid-terminal/BUILD.md)
 - [Firmware flashing / troubleshooting](firmware/rfid-terminal/FLASHING.md)
 - [Exact Rev C.3 wiring reference](hardware/rfid-terminal/WIRING.md)
@@ -31,9 +31,9 @@ Firmware and hardware documentation for [MakerVault](https://github.com/gavrd7/M
 
 2.4 GHz Wi-Fi with multiple saved networks; temporary access point or LAN QR phone setup; certificate-verified MakerVault HTTPS, Local CA management, secure eight-digit pairing-v1, NVS credential persistence and endpoint guard, background heartbeat, TFT navigation, and basic RFID/NFC tag UID scanning.
 
-### Not implemented yet
+### Connected MakerTag workflows (draft PR #6)
 
-Online MakerTag record resolution, MakerTag creation/registration, physical RFID writes and Creality CFS payload decoding. Backend API permission scopes do not imply these features are implemented in the handheld.
+When used with MakerVault app PR #150, this branch supports read-only MakerTag lookup, browser-initiated UID registration, explicit on-terminal reassignment of existing tags, browser/terminal cancellation, and recovery of interrupted requests. **No tag-memory writes, NDEF encoding or Creality CFS payload decoding are implemented.** The published v0.5.1.14 baseline on `main` predates these integrations.
 
 The v0.5.1.14 maintenance update corrected the displayed and heartbeat firmware versions and passed physical regression tests.
 
@@ -44,3 +44,5 @@ A filament weigh station is planned. Final Rev3 enclosure STL, STEP, 3MF and CAD
 ## Responsible distribution
 
 Do not commit credentials, provisioning logs with secrets, local CA private keys or personal network details. Do not publish before reviewing historical commits and the provenance/licensing of embedded icon and brand images.
+
+**Next firmware release candidate: v0.6.0 (PR #6).** This branch now reports v0.6.0 on its device information screen and serial output. It adds Maker Tag UID lookup, browser-initiated registration, explicit reassignment, and request cancellation/recovery. It is not released until the PR merges and a release is published. The published stable firmware remains v0.5.1.14. Physical tag-memory writes, NDEF encoding, and Creality CFS payload writing are not supported.
