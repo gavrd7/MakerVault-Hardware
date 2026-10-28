@@ -9,9 +9,11 @@ bool scanLookupQueued=false;
 
 void scanLookupTask(void *) {
  String response;
+ const uint32_t requestSerial=scanLookupSerial;
  String body=String("{\"kind\":\"")+scanLookupKind+"\",\"uid\":\""+scanLookupUid+"\"}";
  int status=mvHttps("/api/device/v1/tags/resolve/","POST",body,response,true);
  // An older request must never overwrite a newer displayed scan.
+ if(requestSerial!=scanLookupSerial){mvTask=nullptr;vTaskDelete(nullptr);return;}
  if(status==200 && response.indexOf("\"found\": true")>=0 || (status==200 && response.indexOf("\"found\":true")>=0)) {
    int targetPos=response.indexOf("\"target\"");
    String targetSection=targetPos>=0?response.substring(targetPos):"";
@@ -40,6 +42,7 @@ void scanLookupDispatch() {
  }
 }
 void scanLookupBegin(const String &uid,const String &kind) {
+ scanLookupSerial++;
  scanLookupQueued=false;scanLookupState=0;scanLookupName="";scanLookupCode="";scanLookupError="";
  if(!mvPairVerified||!mvCanReadTags||!mvEndpointApproved()||WiFi.status()!=WL_CONNECTED)return;
  scanLookupUid=uid;scanLookupKind=kind;
