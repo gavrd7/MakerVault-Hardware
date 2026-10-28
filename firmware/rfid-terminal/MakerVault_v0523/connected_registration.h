@@ -68,6 +68,7 @@ void regCancelTask(void *) {
   regCancelId="";
   mvTask=nullptr;vTaskDelete(nullptr);
 }
+void regReset();
 void regCancel() {
   if(regState!=0 && regState!=4 && regId.length()==36 && !mvTask && mvEndpointApproved()) {
     regCancelId=regId;
