@@ -899,6 +899,7 @@ void setup(){
 void loop(){
  provisioningLoop();
  mvLoop();mvHeartbeatLoop();
+ regScheduleCancel();
  regSchedulePoll();
  regCheckStatus();
  if(regServerClosed && page==REGISTRATION){regReset();page=MAKERTAGS_MENU;render();}
