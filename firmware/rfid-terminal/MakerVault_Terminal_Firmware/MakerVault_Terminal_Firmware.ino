@@ -6,6 +6,7 @@
 #include <MFRC522.h>
 #include <WiFi.h>
 #include <Fonts/FreeSansBold9pt7b.h>
+#include "firmware_version.h"
 #include "brand_images.h"
 #include "ui_icons.h"
 #include "provisioning.h"
@@ -13,7 +14,7 @@
 #include "scan_lookup.h"
 #include "remote_lookup.h"
 
-// MakerVault handheld UI v0.6.0 -- ESP32-S3 SuperMini, Rev C.3
+// MakerVault handheld UI v0.6.1 -- ESP32-S3 SuperMini, Rev C.3
 // Shared hardware SPI, read-only RFID, all original GPIO assignments.
 constexpr uint8_t SCK_PIN=12, MOSI_PIN=11, MISO_PIN=13;
 constexpr uint8_t TFT_CS=1, TFT_DC=2, TFT_RST=43;
@@ -550,7 +551,7 @@ void connectKnownNetwork(){
 }
 
 void info(){
- detailClear();detailWrapped("Firmware v0.6.0",WHITE);
+ detailClear();detailWrapped(String("Firmware v")+MAKERVAULT_FIRMWARE_VERSION,WHITE);
  detailWrapped("Device: "+(mvDeviceName.length()?mvDeviceName:String("Not verified")),SILVER);
  detailWrapped("Wi-Fi IP: "+currentIpAddress(),WiFi.status()==WL_CONNECTED?WHITE:SILVER);
  detailWrapped("Pairing: "+String(mvPairingLabel()),mvPairVerified?GREEN:AMBER);
@@ -896,10 +897,10 @@ void setup(){
  previousAB=(digitalRead(ENC_A)<<1)|digitalRead(ENC_B);
  SPI.begin(SCK_PIN,MISO_PIN,MOSI_PIN,-1);
  tft.initR(INITR_144GREENTAB);tft.setRotation(0);
- Serial.println("[SYSTEM] MakerVault v0.6.0 / shared hardware SPI + Wi-Fi provisioning");
+ Serial.println(String("[SYSTEM] MakerVault v")+MAKERVAULT_FIRMWARE_VERSION+" / shared hardware SPI + Wi-Fi provisioning");
  splash();mvLoad();provisioningBegin();if(setupAPActive){page=SETUP_WIFI;render();}else home();lastInputAt=millis();
  Serial.println("[SYSTEM] Home menu ready; reader check deferred");
- Serial.println("[SYSTEM] READY v0.6.0");
+ Serial.println(String("[SYSTEM] READY v")+MAKERVAULT_FIRMWARE_VERSION);
 }
 void loop(){
  provisioningLoop();
