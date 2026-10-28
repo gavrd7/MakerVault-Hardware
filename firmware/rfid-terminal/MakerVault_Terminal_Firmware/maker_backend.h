@@ -400,7 +400,7 @@ const char* mvStatusName(){
 // Heartbeats are issued off-thread, only for wizard-paired devices.
 void mvHeartbeatTask(void *){
  String reply;int code=mvHttps("/api/device/v1/heartbeat/","POST",
-  "{\"firmware_version\":\"0.5.1.14\",\"capabilities\":[\"rfid\",\"nfc\",\"wifi\"],\"status\":{\"wifi\":\"connected\",\"api\":\"ok\",\"hardware\":\"ok\"}}",reply,true);
+  "{\"firmware_version\":\"0.6.0\",\"capabilities\":[\"rfid\",\"nfc\",\"wifi\"],\"status\":{\"wifi\":\"connected\",\"api\":\"ok\",\"hardware\":\"ok\"}}",reply,true);
  // Always record a status for diagnosis; the server updates last_seen only on 200.
  mvLastHttpCode=code;
  Serial.printf("[MAKERVAULT] heartbeat HTTP response: %d\n",code);
