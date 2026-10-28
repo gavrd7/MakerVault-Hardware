@@ -305,7 +305,8 @@ void scanPage(){
   // high-contrast white help glyph, rather than an outlined circle.
   display->fillCircle(64,54,20,AMBER);
   textAt(58,46,"?",WHITE,2);
-  centeredAt(84,"Not registered",AMBER);
+  centeredAt(78,"Not",AMBER);
+  centeredAt(90,"registered",AMBER);
  }else if(scanLookupState==1){
   centeredAt(62,"Checking tag...",SKY);
  }else if(scanLookupState==4){
@@ -800,7 +801,7 @@ void processInputs(){
   Serial.println("[BUTTON] CONFIRM");
   if(page==REGISTRATION && (regState==2||regState==6)){regSubmit(regUid,regKind);registrationScreen();return;}
   if(page==HOME)choose();else if(page==CONTROLS)control("Confirm");
-  else if(page==SCAN){scanResultVisible=false;scanLookupState=0;scanPage();}
+  else if(page==SCAN){scanResultVisible=false;scanLookupQueued=false;scanLookupState=0;scanPage();}
   else if(page==DELETE_WIFI){
    // Resolve by SSID, not list index, to avoid deleting the wrong network.
    for(uint8_t i=0;i<knownCount;i++){
@@ -902,6 +903,7 @@ void loop(){
  provisioningLoop();
  mvLoop();mvHeartbeatLoop();
  regScheduleCancel();
+ scanLookupDispatch();
  regSchedulePoll();
  regCheckStatus();
  if(regServerClosed && page==REGISTRATION){regReset();page=MAKERTAGS_MENU;render();}
