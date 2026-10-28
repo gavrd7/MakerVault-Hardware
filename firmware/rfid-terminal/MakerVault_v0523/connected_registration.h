@@ -61,6 +61,21 @@ bool regSubmit(const String &uid,const String &kind) {
   }
   return true;
 }
+String regCancelId="";
+void regCancelTask(void *) {
+  String response;
+  mvHttps("/api/device/v1/tag-registration/"+regCancelId+"/cancel/","POST","{}",response,true);
+  regCancelId="";
+  mvTask=nullptr;vTaskDelete(nullptr);
+}
+void regCancel() {
+  if(regState!=0 && regState!=4 && regId.length()==36 && !mvTask && mvEndpointApproved()) {
+    regCancelId=regId;
+    if(xTaskCreatePinnedToCore(regCancelTask,"mv_reg_cancel",12288,nullptr,1,&mvTask,0)!=pdPASS)
+      mvTask=nullptr;
+  }
+  regReset();
+}
 void regReset() {
   regSuppressedId=regId;
   regState=0;regId="";regUid="";regKind="";regTarget="";regRecordCode="";regError="";regReassignToken="";regPreviousLabel="";regLastCheck=millis();
