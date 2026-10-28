@@ -27,10 +27,12 @@ existing standalone scan path is unchanged.
    Confirm, and verify browser completion and one recorded tag.
 6. Repeat with MIFARE Classic 1K on a separate test record; confirm family and
    exact normalized UID.
-7. Rescan/retry existing UID across NFC/RFID legacy kinds: expect conflict,
-   not silent reassignment.
-8. Test cancellation, expiry, wrong device, offline Wi-Fi and untrusted CA.
+7. Rescan/retry an existing UID across NFC/RFID legacy kinds. Reassignment to a **different** record must show the original and proposed target on the terminal, require a second explicit Confirm, and keep the UID and MakerVault ID. Scanning against the same record must not modify the tag. Back cancels without reassignment.
+8. Test cancellation from **either** handheld or browser, browser refresh and resuming a pending request, expiry, wrong device, offline Wi-Fi and untrusted CA.
    Registration must not bypass TLS or disturb existing pairing/heartbeat.
 9. Verify normal standalone tag scan and button navigation still work.
 
-**Do not merge or release firmware before compilation and physical acceptance.**
+9. Verify unregistered tag icon and text wrapping, and repeat lookups without alternating an offline result.
+10. Confirm tag history contains the previous and new target and that the original MakerVault ID remains unchanged.
+
+**Do not merge or release firmware before a clean Arduino IDE compile after the sketch-folder rename and final regression acceptance.**
