@@ -301,9 +301,11 @@ void scanPage(){
   // The full identifier must fit: MV- plus eight hex chars.
   textAt(7,79,scanLookupCode.c_str(),SKY);
  }else if(scanLookupState==3){
-  display->drawCircle(64,53,17,AMBER);
-  textAt(60,45,"?",AMBER);
-  centeredAt(82,"Not registered",AMBER);
+  // Material-style unknown identity: filled amber status disc with a
+  // high-contrast white help glyph, rather than an outlined circle.
+  display->fillCircle(64,54,20,AMBER);
+  textAt(58,46,"?",WHITE,2);
+  centeredAt(84,"Not registered",AMBER);
  }else if(scanLookupState==1){
   centeredAt(62,"Checking tag...",SKY);
  }else if(scanLookupState==4){
