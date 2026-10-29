@@ -60,7 +60,13 @@ inline bool blankNdef(const uint8_t *memory, size_t count) {
   while (i < count && memory[i] == 0x00) ++i;
   if (i == count) return true;
   if (i + 2 < count && memory[i] == 0x03 && memory[i + 1] == 0x00 &&
-      memory[i + 2] == 0xFE) return true;
+      memory[i + 2] == 0xFE) {
+    // Reject hidden content after an empty-record terminator. The caller
+    // must never interpret a partially inspected/dirty tag as blank.
+    for (size_t j = i + 3; j < count; ++j)
+      if (memory[j] != 0x00) return false;
+    return true;
+  }
   return false;
 }
 
