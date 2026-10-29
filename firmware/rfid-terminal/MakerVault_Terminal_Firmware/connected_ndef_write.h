@@ -2,6 +2,7 @@
 // Browser-approved NTAG215 NDEF write handoff. Separate from normal scanning,
 // registration and CFS code. Feature is disabled until physical acceptance.
 #include "ntag215_feature_gate.h"
+#include "ntag215_rc522_page_io.h"
 
 String ndefId="", ndefUid="", ndefTagId="", ndefUrl="", ndefError="", ndefCancelId="";
 volatile uint8_t ndefState=0;
