@@ -39,7 +39,7 @@ constexpr uint16_t BG=0x0843, CARD=0x10C6, NAVY=0x10ED,
 // Write actions remain feature gated until fully implemented. API scope alone
 // never authorises a placeholder to appear as a working device operation.
 constexpr bool MAKERTAG_CREATE_IMPLEMENTED=false, RFID_WRITE_IMPLEMENTED=false;
-enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST};
+enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST,NDEF_WRITE};
 Page page=HOME;
 const char* choices[]={"MakerTags","RFID Tags","Connections","System info"};
 int subSelected=0, detailScroll=0, detailCount=0;
@@ -680,12 +680,28 @@ void registrationScreen(){
   bottom("Back: menu");
  }
 }
+#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+void ndefWriterScreen(){
+ detailClear();detailWrapped("Tag: "+ndefTagId,WHITE);
+ if(ndefState==1)detailWrapped("Present matching NTAG215",SILVER);
+ else if(ndefState==2){detailWrapped("Confirm physical write?",AMBER);detailWrapped(ndefUrl,SILVER);}
+ else if(ndefState==3)detailWrapped("Checking server authorization",SILVER);
+ else if(ndefState==4)detailWrapped("Present tag again to write",AMBER);
+ else if(ndefState==5)detailWrapped("Reporting read-back verification",SILVER);
+ else if(ndefState==6)detailWrapped("Write verified by MakerVault",GREEN);
+ else if(ndefState==7)detailWrapped(ndefError,AMBER);
+ detailScroll=0;detailPaint("NTAG215 write");
+}
+#endif
 void render(){
  switch(page){
   case HOME:home();break;
   case SCAN:scanPage();break;
   case REGISTRATION:registrationScreen();break;
   case LOOKUP_REQUEST:remoteLookupScreen();break;
+#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+  case NDEF_WRITE:ndefWriterScreen();break;
+#endif
   case RECENT: simple("Recent tag","Not available");break;
   case CONTROLS:simple("Control test","Turn / press", "Back exits");break;
   case CONNECTIONS:connections();break;
@@ -780,6 +796,9 @@ void choose(){
  Serial.print("[MENU] Selected: ");Serial.println(choices[selected]);render();
 }
 void back(){
+#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+ if(page==NDEF_WRITE){ndefReset(ndefState!=6);page=MAKERTAGS_MENU;render();return;}
+#endif
  if(page==LOOKUP_REQUEST && remoteLookupState!=2){remoteLookupReset();page=MAKERTAGS_MENU;render();return;}
  if(page==REGISTRATION && regState!=3){regCancel();page=MAKERTAGS_MENU;render();return;}
  Serial.println("[BUTTON] BACK");if(page==DELETE_WIFI){pendingDeleteSSID="";page=KNOWN_WIFI;render();return;}if(page==SETUP_WIFI || page==MAKERVAULT_SETUP){if(lanPortalActive)stopPortal();page=(page==SETUP_WIFI)?WIFI_MENU:MV_MENU;render();return;}if(page==KNOWN_WIFI||page==WIFI_STATUS){page=WIFI_MENU;render();return;}
@@ -807,6 +826,9 @@ void processInputs(){
  if(backKey.pressed())back();
  if(confirmKey.pressed()){
   Serial.println("[BUTTON] CONFIRM");
+#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+  if(page==NDEF_WRITE){if(ndefState==2)ndefConfirm();else if(ndefState==6||ndefState==7){ndefReset(false);page=MAKERTAGS_MENU;}render();return;}
+#endif
   if(page==REGISTRATION && (regState==2||regState==6)){regSubmit(regUid,regKind);registrationScreen();return;}
   if(page==HOME)choose();else if(page==CONTROLS)control("Confirm");
   else if(page==SCAN){scanResultVisible=false;scanLookupQueued=false;scanLookupState=0;scanPage();}
@@ -860,7 +882,13 @@ void readerInit(){
 }
 
 void pollTag(){
- if((page!=SCAN && !(page==REGISTRATION && regState==1) && !(page==LOOKUP_REQUEST && remoteLookupState==1))||(page==SCAN && scanResultVisible)||(uint32_t)(millis()-lastPoll)<100)return;
+#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+ const bool ndefScanning=(page==NDEF_WRITE && (ndefState==1 || ndefState==4));
+ if(!ndefScanning && ndefState!=0 && page==NDEF_WRITE)return;
+#else
+ const bool ndefScanning=false;
+#endif
+ if((!ndefScanning && page!=SCAN && !(page==REGISTRATION && regState==1) && !(page==LOOKUP_REQUEST && remoteLookupState==1))||(page==SCAN && scanResultVisible)||(uint32_t)(millis()-lastPoll)<100)return;
  lastPoll=millis();digitalWrite(TFT_CS,HIGH);
  if(!rfid.PICC_IsNewCardPresent()||!rfid.PICC_ReadCardSerial())return;
  String uid="";
@@ -869,6 +897,31 @@ void pollTag(){
  }
  uid.toUpperCase();recentUid=uid;
  recentType=String(rfid.PICC_GetTypeName(rfid.PICC_GetType(rfid.uid.sak)));
+#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+ if(ndefScanning){
+  if(ndefState==1){
+   MakerVaultRc522PageIO io(rfid);
+   MakerVaultNtag215::MemoryInfo info={false,false,0};
+   uint8_t area[MakerVaultNtag215::kUserBytes]={};
+   if(!MakerVaultNtag215::inspectMemory(io,rfid.uid.uidByte,info) ||
+      !MakerVaultNtag215::readNdefArea(io,area) ||
+      MakerVaultNtag215::assess(info,rfid.uid.uidByte,rfid.uid.size,ndefUid.c_str(),ndefTagId.c_str(),ndefUrl.c_str(),area,sizeof(area),true,true)!=MakerVaultNtag215::WRITE_READY){
+    ndefError="Unsupported, locked or occupied";ndefState=7;
+   }else ndefState=2;
+  }else if(ndefState==4){
+   MakerVaultRc522PageIO io(rfid);
+   if(rfid.uid.size!=7){ndefError="UID changed";ndefState=7;}
+   else {
+    const auto result=MakerVaultNtag215::writeNdef(io,rfid.uid.uidByte,ndefUid.c_str(),ndefTagId.c_str(),ndefUrl.c_str(),true,true);
+    if(result!=MakerVaultNtag215::RESULT_VERIFIED){ndefError="Write/read-back failed";ndefState=7;}
+    else ndefState=5;
+   }
+  }
+  rfid.PICC_HaltA();rfid.PCD_StopCrypto1();render();
+  if(ndefState==5)ndefSubmitVerified();
+  return;
+ }
+#endif
  rfid.PICC_HaltA();rfid.PCD_StopCrypto1();
  if(page==LOOKUP_REQUEST){
   auto family=rfid.PICC_GetType(rfid.uid.sak);
@@ -919,6 +972,8 @@ void loop(){
 #if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
  ndefSchedulePoll();
  ndefScheduleCancel();
+ if(ndefState==1 && page!=NDEF_WRITE && regState==0 && remoteLookupState==0){page=NDEF_WRITE;lastPoll=0;render();}
+ if(page==NDEF_WRITE){static uint8_t shown=255;if(shown!=ndefState){shown=ndefState;ndefWriterScreen();}}
 #endif
  if(remoteLookupState==1 && page!=LOOKUP_REQUEST && regState==0){page=LOOKUP_REQUEST;lastPoll=0;render();}
  if(page==LOOKUP_REQUEST){static uint8_t lastRemoteState=255;if(lastRemoteState!=remoteLookupState){lastRemoteState=remoteLookupState;remoteLookupScreen();}}
