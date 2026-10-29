@@ -29,6 +29,7 @@ void regCompleteTask(void *) {
   if(regReassignToken.length()) payload="{\"kind\":\""+regKind+"\",\"uid\":\""+regUid+"\",\"reassign_token\":\""+regReassignToken+"\"}";
   int status=mvHttps("/api/device/v1/tag-registration/"+regId+"/complete/",
                      "POST",payload,response,true);
+  Serial.printf("[REGISTRATION] Complete HTTP status=%d (request response %u bytes)\n",status,(unsigned)response.length());
   if(status==201||status==200) {regState=4;regError="";}
   else {
     if(status==409 && (response.indexOf("\"reassign_required\": true")>=0 ||
