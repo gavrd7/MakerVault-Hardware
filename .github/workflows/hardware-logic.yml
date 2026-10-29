@@ -26,5 +26,9 @@ jobs:
         run: c++ -std=c++11 -Wall -Wextra -Werror tests/ntag215_page_transaction_test.cpp -o /tmp/makervault-ndef-page-test
       - name: Run NTAG215 mock page transactions
         run: /tmp/makervault-ndef-page-test
+      - name: Build RC522 page adapter mock
+        run: c++ -std=c++11 -Wall -Wextra -Werror tests/ntag215_rc522_page_io_test.cpp -o /tmp/makervault-ndef-rc522-test
+      - name: Run RC522 page adapter mock
+        run: /tmp/makervault-ndef-rc522-test
       - name: Run standalone NDEF URI tests
         run: /tmp/makervault-ndef-test
