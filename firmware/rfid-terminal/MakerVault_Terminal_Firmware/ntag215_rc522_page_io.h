@@ -15,9 +15,12 @@ class MakerVaultRc522PageIO : public MakerVaultNtag215::PageIO {
     if (!out || page > 132) return false;
     uint8_t buffer[18] = {};
     uint8_t count = sizeof(buffer);
-    if (reader_.MIFARE_Read(page, buffer, &count) != MFRC522::STATUS_OK ||
-        count < 4) return false;
-    memcpy(out, buffer, 4);
+    // READ returns four consecutive pages. Start at 130 when requesting
+    // late NTAG215 configuration pages to avoid crossing the tag end.
+    const uint8_t start = page >= 130 ? 130 : page;
+    if (reader_.MIFARE_Read(start, buffer, &count) != MFRC522::STATUS_OK ||
+        count < 16) return false;
+    memcpy(out, buffer + (page-start)*4, 4);
     return true;
   }
   bool writePage(uint8_t page, const uint8_t bytes[4]) override {
