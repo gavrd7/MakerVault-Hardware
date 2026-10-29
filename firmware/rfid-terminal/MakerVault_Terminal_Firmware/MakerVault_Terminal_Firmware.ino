@@ -684,7 +684,7 @@ void registrationScreen(){
 void ndefWriterScreen(){
  detailClear();detailWrapped("Tag: "+ndefTagId,WHITE);
  if(ndefState==1)detailWrapped("Present matching NTAG215",SILVER);
- else if(ndefState==2){detailWrapped("Confirm physical write?",AMBER);detailWrapped(ndefUrl,SILVER);}
+ else if(ndefState==2){detailWrapped(ndefExistingUrl.length()?"Overwrite existing URL?":"Write new NFC URL?",AMBER);if(ndefExistingUrl.length())detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);}
  else if(ndefState==3)detailWrapped("Checking server authorization",SILVER);
  else if(ndefState==4)detailWrapped("Present tag again to write",AMBER);
  else if(ndefState==5)detailWrapped("Reporting read-back verification",SILVER);
@@ -927,7 +927,12 @@ void pollTag(){
     const auto decision=MakerVaultNtag215::assess(
       info,rfid.uid.uidByte,rfid.uid.size,ndefUid.c_str(),
       ndefTagId.c_str(),ndefUrl.c_str(),area,sizeof(area),true,true);
-    if(decision==MakerVaultNtag215::WRITE_READY)ndefState=2;
+    if(decision==MakerVaultNtag215::WRITE_READY){
+      char existingUrl[MakerVaultNdef::kMaxUriLength+1]={};
+      ndefExistingUrl=MakerVaultNdef::decodeUri(area,sizeof(area),existingUrl,sizeof(existingUrl))
+        ? String(existingUrl) : String("");
+      ndefState=2;
+    }
     else{
       ndefError=decision==MakerVaultNtag215::WRITE_REJECT_FOREIGN_CONTENT
         ?"Existing NDEF needs override"
