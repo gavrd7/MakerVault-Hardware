@@ -16,8 +16,8 @@ void ndefPendingTask(void*) {
  int code=mvHttps("/api/device/v1/ndef-write/pending/","GET","",response,true);
  if(code==200 && ndefWorkflowState==0) {
   // Reuse the existing minimal response parser; no additional library.
-  if(response.indexOf("\\\"request\\\":null")<0 &&
-     response.indexOf("\\\"request\\\": null")<0) {
+  if(response.indexOf("\"request\":null")<0 &&
+     response.indexOf("\"request\": null")<0) {
    String id=mvField(response,"id"),uid=mvField(response,"uid");
    String marker=mvField(response,"maker_tag_id"),url=mvField(response,"url");
    if(id.length()==36 && id!=ndefSuppressedId && uid.length()==14 &&
