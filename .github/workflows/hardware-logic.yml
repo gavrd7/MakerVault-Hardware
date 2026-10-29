@@ -1,0 +1,22 @@
+name: Hardware logic tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-cpp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build standalone NDEF URI tests
+        run: |
+          c++ -std=c++11 -Wall -Wextra -Werror \
+            tests/ntag_ndef_uri_test.cpp -o /tmp/makervault-ndef-test
+      - name: Run standalone NDEF URI tests
+        run: /tmp/makervault-ndef-test
