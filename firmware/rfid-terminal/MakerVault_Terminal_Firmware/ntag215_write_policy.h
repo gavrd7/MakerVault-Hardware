@@ -87,4 +87,18 @@ inline WriteDecision assess(const MemoryInfo &info, const uint8_t *uid,
   if (!hasIdentitySuffix(previous, makerTagId)) return WRITE_REJECT_FOREIGN_CONTENT;
   return WRITE_READY;
 }
+// Independently verify what was physically read back after a write.
+// Caller must re-select the tag and provide fresh UID and page reads; do not
+// reuse the pre-write snapshot as proof of a completed write.
+inline bool verifyReadback(const uint8_t *uid, size_t uidLength,
+                           const char *expectedUid, const char *expectedUrl,
+                           const uint8_t *readback, size_t readbackLength) {
+  if (!matchesUid(uid, uidLength, expectedUid) || !expectedUrl ||
+      !MakerVaultNdef::validUri(expectedUrl, strlen(expectedUrl))) return false;
+  char actual[MakerVaultNdef::kMaxUriLength + 1] = {0};
+  return MakerVaultNdef::decodeUri(readback, readbackLength,
+                                  actual, sizeof(actual)) &&
+         strcmp(actual, expectedUrl) == 0;
+}
+
 } // namespace MakerVaultNtag215
