@@ -911,11 +911,33 @@ void pollTag(){
    MakerVaultRc522PageIO io(rfid);
    MakerVaultNtag215::MemoryInfo info={false,false,0};
    uint8_t area[MakerVaultNtag215::kUserBytes]={};
-   if(!MakerVaultNtag215::inspectMemory(io,rfid.uid.uidByte,info) ||
-      !MakerVaultNtag215::readNdefArea(io,area) ||
-      MakerVaultNtag215::assess(info,rfid.uid.uidByte,rfid.uid.size,ndefUid.c_str(),ndefTagId.c_str(),ndefUrl.c_str(),area,sizeof(area),true,true)!=MakerVaultNtag215::WRITE_READY){
-    ndefError="Unsupported, locked or occupied";ndefState=7;
-   }else ndefState=2;
+   if(rfid.uid.size!=7 || !MakerVaultNtag215::matchesUid(
+        rfid.uid.uidByte,rfid.uid.size,ndefUid.c_str())){
+    ndefError="Wrong tag UID";ndefState=7;
+   }else if(!MakerVaultNtag215::inspectMemory(io,rfid.uid.uidByte,info)){
+    ndefError="Cannot read tag config";ndefState=7;
+   }else if(!info.supported){
+    ndefError="Not NTAG215 (CC)";ndefState=7;
+   }else if(!info.writable){
+    ndefError="Locked / protected tag";ndefState=7;
+   }else if(!MakerVaultNtag215::readNdefArea(io,area)){
+    ndefError="Cannot read tag memory";ndefState=7;
+   }else{
+    const auto decision=MakerVaultNtag215::assess(
+      info,rfid.uid.uidByte,rfid.uid.size,ndefUid.c_str(),
+      ndefTagId.c_str(),ndefUrl.c_str(),area,sizeof(area),true,true);
+    if(decision==MakerVaultNtag215::WRITE_READY)ndefState=2;
+    else{
+      ndefError=decision==MakerVaultNtag215::WRITE_REJECT_FOREIGN_CONTENT
+        ?"Existing NDEF needs override"
+        :decision==MakerVaultNtag215::WRITE_REJECT_URL
+        ?"Invalid MakerVault URL"
+        :decision==MakerVaultNtag215::WRITE_REJECT_UID
+        ?"Wrong tag UID":"Tag safety check failed";
+      ndefState=7;
+    }
+   }
+   if(ndefState==7)Serial.printf("[NDEF] Pre-write inspection: %s\\n",ndefError.c_str());
   }else if(ndefState==4){
    MakerVaultRc522PageIO io(rfid);
    if(rfid.uid.size!=7 || !mvPairVerified || !mvCanWriteTags ||
