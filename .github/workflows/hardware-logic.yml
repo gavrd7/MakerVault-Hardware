@@ -19,9 +19,7 @@ jobs:
           c++ -std=c++11 -Wall -Wextra -Werror \
             tests/ntag_ndef_uri_test.cpp -o /tmp/makervault-ndef-test
       - name: Build NTAG215 write safety policy tests
-        run: |
-          c++ -std=c++11 -Wall -Wextra -Werror \\
-            tests/ntag215_write_policy_test.cpp -o /tmp/makervault-ndef-policy-test
+        run: c++ -std=c++11 -Wall -Wextra -Werror tests/ntag215_write_policy_test.cpp -o /tmp/makervault-ndef-policy-test
       - name: Run NTAG215 write safety policy tests
         run: /tmp/makervault-ndef-policy-test
       - name: Run standalone NDEF URI tests
