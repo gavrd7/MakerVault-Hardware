@@ -3,7 +3,7 @@
 // Reuses the paired MakerVault HTTPS client, scoped credential and task slot.
 String regId="", regTarget="", regRecordCode="", regUid="", regKind="", regError="", regSuppressedId="", regReassignToken="", regPreviousLabel="";
 volatile uint8_t regState=0; // 0 idle; 1 request ready; 2 tag scanned; 3 sending; 4 success; 5 error; 6 reassign confirmation
-uint32_t regLastCheck=0,regLastStatusCheck=0;
+uint32_t regLastCheck=0,regLastStatusCheck=0,regSubmitStarted=0;
 volatile bool regServerClosed=false;
 
 void regPendingTask(void *) {
@@ -81,7 +81,7 @@ void regSchedulePoll() {
 bool regSubmit(const String &uid,const String &kind) {
   if(regState!=2 && regState!=6||regId.length()!=36||mvTask||!mvCanWriteTags||
      !mvEndpointApproved())return false;
-  regUid=uid;regKind=kind;regState=3;
+  regUid=uid;regKind=kind;regSubmitStarted=millis();regState=3;
   if(xTaskCreatePinnedToCore(regCompleteTask,"mv_reg_send",12288,nullptr,1,&mvTask,0)!=pdPASS) {
     regState=5;regError="Insufficient memory";mvTask=nullptr;return false;
   }
@@ -111,5 +111,17 @@ void regCancel() {
 }
 void regReset() {
   regSuppressedId=regId;
-  regState=0;regId="";regUid="";regKind="";regTarget="";regRecordCode="";regError="";regReassignToken="";regPreviousLabel="";regServerClosed=false;regLastCheck=millis();
+  regState=0;regId="";regUid="";regKind="";regTarget="";regRecordCode="";regError="";regReassignToken="";regPreviousLabel="";regServerClosed=false;regSubmitStarted=0;regLastCheck=millis();
+}
+
+// A network operation must never strand the terminal on "Registering...".
+// We do not discard or cancel the in-flight task: the server may already
+// have committed the tag. Treat this as an uncertain result and ask the user
+// to check the browser; the next poll can reconcile the server state.
+void regSubmissionWatchdog() {
+  if (regState!=3 || !regSubmitStarted) return;
+  if ((uint32_t)(millis()-regSubmitStarted) < 30000UL) return;
+  Serial.println("[REGISTRATION] Completion response delayed >30 s; check MakerVault for saved tag");
+  regError="Response delayed; check MakerVault";
+  regState=5;
 }
