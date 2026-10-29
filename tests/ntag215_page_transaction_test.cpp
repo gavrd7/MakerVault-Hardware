@@ -12,6 +12,7 @@ struct FakeTag : MakerVaultNtag215::PageIO {
   FakeTag() {
     memory[3][0]=0xE1;memory[3][1]=0x10;
     memory[3][2]=0x3E;memory[3][3]=0x00;
+    memory[131][3]=0xFF; // AUTH0 disabled (factory default)
   }
   bool readPage(uint8_t page, uint8_t out[4]) override {
     memcpy(out,memory[page],4);
@@ -50,6 +51,14 @@ int main() {
   locked.memory[2][2]=1;
   assert(writeNdef(locked,uid,uidText,id,url,true,true)==RESULT_UNSAFE);
   assert(locked.writes==0);
+  FakeTag protectedTag;
+  protectedTag.memory[131][3]=0x05; // AUTH0 requires password from page 5
+  assert(writeNdef(protectedTag,uid,uidText,id,url,true,true)==RESULT_UNSAFE);
+  assert(protectedTag.writes==0);
+  FakeTag accessProtected;
+  accessProtected.memory[132][0]=0x80;
+  assert(writeNdef(accessProtected,uid,uidText,id,url,true,true)==RESULT_UNSAFE);
+  assert(accessProtected.writes==0);
   FakeTag foreign;
   foreign.memory[4][0]=0x03;foreign.memory[4][1]=0x00;foreign.memory[4][2]=0xFE;
   foreign.memory[8][1]=0x88; // Nonblank data beyond the terminator
