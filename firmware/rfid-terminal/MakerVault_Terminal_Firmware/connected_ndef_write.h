@@ -4,7 +4,7 @@
 #include "ntag215_feature_gate.h"
 #include "ntag215_rc522_page_io.h"
 
-String ndefId="", ndefUid="", ndefTagId="", ndefUrl="", ndefError="", ndefCancelId="";
+String ndefId="", ndefUid="", ndefTagId="", ndefUrl="", ndefError="", ndefCancelId="", ndefExistingUrl="";
 volatile uint8_t ndefState=0;
 // 0 idle; 1 present tag; 2 physical confirm; 3 checking live server;
 // 4 authorized physical write; 5 reporting verification; 6 success; 7 error
@@ -25,7 +25,7 @@ void ndefPendingTask(void *) {
        MakerVaultNtag215::matchesUid(nullptr,0,uid.c_str())==false &&
        MakerVaultNtag215::hasIdentitySuffix(url.c_str(),tag.c_str())) {
       ndefId=found;ndefUid=uid;ndefTagId=tag;ndefUrl=url;
-      ndefError="";ndefStarted=millis();ndefState=1;
+      ndefError="";ndefExistingUrl="";ndefStarted=millis();ndefState=1;
     }
   }
   mvTask=nullptr;vTaskDelete(nullptr);
@@ -108,7 +108,7 @@ void ndefScheduleCancel() {
 void ndefReset(bool cancelServer) {
   if(cancelServer && ndefId.length()==36 && ndefState!=6)
     ndefCancelId=ndefId;
-  ndefState=0;ndefId="";ndefUid="";ndefTagId="";ndefUrl="";
+  ndefState=0;ndefId="";ndefUid="";ndefTagId="";ndefUrl="";ndefExistingUrl="";
   ndefError="";ndefStarted=0;ndefAuthorizedAt=0;ndefLastPoll=millis();
 }
 
