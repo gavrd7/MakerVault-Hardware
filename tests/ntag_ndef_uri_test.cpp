@@ -1,6 +1,7 @@
 // Portable host test for the firmware NDEF URI codec.
 // Compile: c++ -std=c++11 -Wall -Wextra -Werror tests/ntag_ndef_uri_test.cpp -o /tmp/ndef-test && /tmp/ndef-test
 #include "../firmware/rfid-terminal/MakerVault_Terminal_Firmware/ntag_ndef_uri.h"
+#include "../firmware/rfid-terminal/MakerVault_Terminal_Firmware/ntag215_inspection.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -30,5 +31,21 @@ int main() {
   assert(!MakerVaultNdef::encodeUri("https://bad host/", encoded, sizeof(encoded), length));
   assert(!MakerVaultNdef::encodeUri("http://host/", encoded, 4, length));
   assert(!MakerVaultNdef::decodeUri(encoded, 7, nullptr, 0));
-  puts("MakerVault NTAG215 NDEF codec: OK");
+  const uint8_t uid[7] = {0x04,0x11,0x22,0x33,0x44,0x55,0x66};
+  const uint8_t cc[4] = {0xE1,0x10,0x3E,0x00};
+  const uint8_t clear[3] = {0,0,0};
+  const uint8_t lock[2] = {0,0};
+  auto info = MakerVaultNtag215::inspect(uid, 7, cc, lock, clear);
+  assert(info.supported && info.writable && info.advertisedUserBytes == 496);
+  assert(!MakerVaultNtag215::inspect(uid, 4, cc, lock, clear).supported);
+  const uint8_t otherCc[4] = {0xE1,0x10,0x12,0};
+  assert(!MakerVaultNtag215::inspect(uid,7,otherCc,lock,clear).supported);
+  const uint8_t locked[2] = {0xFF,0};
+  info = MakerVaultNtag215::inspect(uid, 7, cc, locked, clear);
+  assert(info.supported && !info.writable);
+  const uint8_t dynamicLocked[3] = {0,1,0};
+  assert(!MakerVaultNtag215::inspect(uid,7,cc,lock,dynamicLocked).writable);
+  const uint8_t readOnlyCc[4] = {0xE1,0x10,0x3E,0x0F};
+  assert(!MakerVaultNtag215::inspect(uid,7,readOnlyCc,lock,clear).writable);
+  puts("MakerVault NTAG215 NDEF codec and memory inspection: OK");
 }
