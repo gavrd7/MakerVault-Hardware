@@ -999,6 +999,7 @@ void loop(){
  scanLookupDispatch();
  regSchedulePoll();
  regCheckStatus();
+ regSubmissionWatchdog();
  if(regServerClosed && page==REGISTRATION){regReset();page=MAKERTAGS_MENU;render();}
  remoteLookupPoll();
 #if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
