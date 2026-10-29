@@ -41,5 +41,14 @@ int main() {
   assert(assess(clear,uid,7,expected,id,url,existing,count,true,true)==WRITE_REJECT_FOREIGN_CONTENT);
   existing[5] = 0x22;
   assert(assess(clear,uid,7,expected,id,url,existing,count,true,true)==WRITE_REJECT_FOREIGN_CONTENT);
+  // Server completion must depend on independently acquired read-back bytes.
+  assert(MakerVaultNdef::encodeUri(url, existing, sizeof(existing), count));
+  assert(verifyReadback(uid, 7, expected, url, existing, count));
+  assert(!verifyReadback(uid, 7, "04AABBCCDDEE00", url, existing, count));
+  assert(!verifyReadback(uid, 7, expected,
+                         "https://different.example/t/MV-A3F92C10/", existing, count));
+  assert(!verifyReadback(uid, 7, expected, url, existing, count - 1));
+  existing[count - 1] = 0; // Missing terminator.
+  assert(!verifyReadback(uid, 7, expected, url, existing, count));
   puts("MakerVault NTAG215 physical-write policy: OK");
 }
