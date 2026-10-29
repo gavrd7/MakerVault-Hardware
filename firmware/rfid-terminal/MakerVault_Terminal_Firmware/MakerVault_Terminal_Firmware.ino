@@ -918,7 +918,8 @@ void pollTag(){
    }else ndefState=2;
   }else if(ndefState==4){
    MakerVaultRc522PageIO io(rfid);
-   if(rfid.uid.size!=7){ndefError="UID changed";ndefState=7;}
+   if(rfid.uid.size!=7 || !mvPairVerified || !mvCanWriteTags ||
+      (uint32_t)(millis()-ndefAuthorizedAt)>15000UL){ndefError="UID or authorization expired";ndefState=7;}
    else {
     const auto result=MakerVaultNtag215::writeNdef(io,rfid.uid.uidByte,ndefUid.c_str(),ndefTagId.c_str(),ndefUrl.c_str(),true,true);
     if(result!=MakerVaultNtag215::RESULT_VERIFIED){ndefError="Write/read-back failed";ndefState=7;}
@@ -980,6 +981,7 @@ void loop(){
 #if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
  ndefSchedulePoll();
  ndefScheduleCancel();
+ ndefExpireLocal();
  if(ndefState==1 && page!=NDEF_WRITE && regState==0 && remoteLookupState==0){page=NDEF_WRITE;lastPoll=0;render();}
  if(page==NDEF_WRITE){static uint8_t shown=255;if(shown!=ndefState){shown=ndefState;ndefWriterScreen();}}
 #endif
