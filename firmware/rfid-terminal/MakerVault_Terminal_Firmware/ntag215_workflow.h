@@ -5,7 +5,6 @@
 // physical confirmation, fresh server authorization and read-back path exists.
 #include "ntag215_reader.h"
 #include "ntag215_write_policy.h"
-#include <ArduinoJson.h>
 String ndefRequestId="",ndefExpectedUid="",ndefMakerTagId="",ndefTargetUrl="";
 String ndefFailure="";
 volatile uint8_t ndefWorkflowState=0; // 0 idle, 1 scan, 2 inspected, 3 rejected
@@ -16,14 +15,11 @@ void ndefPendingTask(void*) {
  String response;
  int code=mvHttps("/api/device/v1/ndef-write/pending/","GET","",response,true);
  if(code==200 && ndefWorkflowState==0) {
-  JsonDocument document;
-  if(deserializeJson(document,response)==DeserializationError::Ok &&
-     document["request"].is<JsonObject>()) {
-   JsonObject request=document["request"];
-   String id=request["id"] | "";
-   String uid=request["uid"] | "";
-   String marker=request["maker_tag_id"] | "";
-   String url=request["url"] | "";
+  // Reuse the existing minimal response parser; no additional library.
+  if(response.indexOf("\\\"request\\\":null")<0 &&
+     response.indexOf("\\\"request\\\": null")<0) {
+   String id=mvField(response,"id"),uid=mvField(response,"uid");
+   String marker=mvField(response,"maker_tag_id"),url=mvField(response,"url");
    if(id.length()==36 && id!=ndefSuppressedId && uid.length()==14 &&
       MakerVaultNtag215::hasIdentitySuffix(url.c_str(),marker.c_str())) {
     ndefRequestId=id;ndefExpectedUid=uid;ndefMakerTagId=marker;
