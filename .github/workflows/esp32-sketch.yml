@@ -46,3 +46,18 @@ jobs:
           name: makervault-ndef-experimental-esp32s3
           path: dist/experimental/*.bin
           if-no-files-found: error
+
+      - name: Package Arduino sketch for hardware testing
+        run: |
+          mkdir -p dist/source
+          cp -a firmware/rfid-terminal/MakerVault_Terminal_Firmware dist/source/
+          sed -i 's/^#define MAKERVAULT_NDEF_WRITER_EXPERIMENTAL 0$/#define MAKERVAULT_NDEF_WRITER_EXPERIMENTAL 1/' \
+            dist/source/MakerVault_Terminal_Firmware/ntag215_feature_gate.h
+          cd dist/source
+          zip -qr ../MakerVault_Terminal_NDEF_Experimental_Arduino.zip MakerVault_Terminal_Firmware
+      - name: Upload experimental Arduino sketch ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: makervault-ndef-experimental-arduino-sketch
+          path: dist/MakerVault_Terminal_NDEF_Experimental_Arduino.zip
+          if-no-files-found: error
