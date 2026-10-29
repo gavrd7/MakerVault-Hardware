@@ -801,6 +801,7 @@ void back(){
  if(page==NDEF_WRITE){ndefReset(ndefState!=6);page=MAKERTAGS_MENU;render();return;}
 #endif
  if(page==LOOKUP_REQUEST && remoteLookupState!=2){remoteLookupReset();page=MAKERTAGS_MENU;render();return;}
+ if(page==REGISTRATION && regState==3){Serial.println("[REGISTRATION] Request still submitting; Back cannot interrupt network task");registrationScreen();return;}
  if(page==REGISTRATION && regState!=3){regCancel();page=MAKERTAGS_MENU;render();return;}
  Serial.println("[BUTTON] BACK");if(page==DELETE_WIFI){pendingDeleteSSID="";page=KNOWN_WIFI;render();return;}if(page==SETUP_WIFI || page==MAKERVAULT_SETUP){if(lanPortalActive)stopPortal();page=(page==SETUP_WIFI)?WIFI_MENU:MV_MENU;render();return;}if(page==KNOWN_WIFI||page==WIFI_STATUS){page=WIFI_MENU;render();return;}
  if(page==MV_PAIR){if(mvPairState==1||mvPairState==2)mvCancelPairing();page=MV_MENU;render();return;}
