@@ -37,10 +37,17 @@ inline bool readNdefArea(PageIO &io, uint8_t buffer[kUserBytes]) {
 
 inline bool inspectMemory(PageIO &io, const uint8_t uid[7], MemoryInfo &info) {
   uint8_t lockPage[4] = {}, cc[4] = {}, dynamic[4] = {};
+  uint8_t cfg0[4] = {}, cfg1[4] = {};
   if (!io.readPage(2, lockPage) || !io.readPage(3, cc) ||
-      !io.readPage(kDynamicLockPage, dynamic)) return false;
+      !io.readPage(kDynamicLockPage, dynamic) ||
+      !io.readPage(131, cfg0) || !io.readPage(132, cfg1)) return false;
   uint8_t staticLocks[2] = {lockPage[2],lockPage[3]};
   info = inspect(uid,7,cc,staticLocks,dynamic);
+  // NTAG215 CFG0 page 0x83 byte 3: AUTH0 must be FF (password off).
+  // CFG1 page 0x84 byte 0: ACCESS must be 00 (default/unprotected).
+  // Nondefault mirror configuration is deliberately unsupported.
+  if (cfg0[3] != 0xFF || cfg1[0] != 0x00 || cfg0[0] != 0x00)
+    info.writable = false;
   return true;
 }
 
