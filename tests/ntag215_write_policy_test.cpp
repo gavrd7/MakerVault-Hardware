@@ -24,6 +24,14 @@ int main() {
   assert(assess(clear,uid,7,expected,id,"javascript:evil",blank,sizeof(blank),true,true)==WRITE_REJECT_URL);
   blank[0]=0x03;blank[1]=0x00;blank[2]=0xFE;
   assert(assess(clear,uid,7,expected,id,url,blank,sizeof(blank),true,true)==WRITE_READY);
+  // A terminated empty TLV is not blank if hidden bytes follow.
+  uint8_t dirtyEmpty[64] = {0x03, 0x00, 0xFE};
+  dirtyEmpty[63] = 0xA5;
+  assert(assess(clear,uid,7,expected,id,url,dirtyEmpty,sizeof(dirtyEmpty),
+                true,true)==WRITE_REJECT_FOREIGN_CONTENT);
+  dirtyEmpty[63] = 0;
+  assert(assess(clear,uid,7,expected,id,url,dirtyEmpty,sizeof(dirtyEmpty),
+                true,true)==WRITE_READY);
   uint8_t existing[MakerVaultNdef::kMaxEncodedLength] = {0};
   size_t count = 0;
   const char *oldUrl = "http://192.168.1.125:8000/t/MV-A3F92C10/";
