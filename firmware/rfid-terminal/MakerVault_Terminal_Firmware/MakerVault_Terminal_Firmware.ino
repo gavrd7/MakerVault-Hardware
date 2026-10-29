@@ -690,6 +690,7 @@ void ndefWriterScreen(){
  else if(ndefState==5)detailWrapped("Reporting read-back verification",SILVER);
  else if(ndefState==6)detailWrapped("Write verified by MakerVault",GREEN);
  else if(ndefState==7)detailWrapped(ndefError,AMBER);
+ else if(ndefState==8)detailWrapped("Present tag to verify",SILVER);
  detailScroll=0;detailPaint("NTAG215 write");
 }
 #endif
@@ -883,7 +884,7 @@ void readerInit(){
 
 void pollTag(){
 #if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
- const bool ndefScanning=(page==NDEF_WRITE && (ndefState==1 || ndefState==4));
+ const bool ndefScanning=(page==NDEF_WRITE && (ndefState==1 || ndefState==4 || ndefState==8));
  if(!ndefScanning && ndefState!=0 && page==NDEF_WRITE)return;
 #else
  const bool ndefScanning=false;
@@ -899,7 +900,14 @@ void pollTag(){
  recentType=String(rfid.PICC_GetTypeName(rfid.PICC_GetType(rfid.uid.sak)));
 #if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
  if(ndefScanning){
-  if(ndefState==1){
+  if(ndefState==8){
+   MakerVaultRc522PageIO io(rfid);
+   uint8_t fresh[MakerVaultNtag215::kUserBytes]={};
+   if(!MakerVaultNtag215::readNdefArea(io,fresh) ||
+      !MakerVaultNtag215::verifyReadback(rfid.uid.uidByte,rfid.uid.size,ndefUid.c_str(),ndefUrl.c_str(),fresh,sizeof(fresh))){
+     ndefError="Fresh read-back failed";ndefState=7;
+   }else ndefState=5;
+  }else if(ndefState==1){
    MakerVaultRc522PageIO io(rfid);
    MakerVaultNtag215::MemoryInfo info={false,false,0};
    uint8_t area[MakerVaultNtag215::kUserBytes]={};
@@ -914,7 +922,7 @@ void pollTag(){
    else {
     const auto result=MakerVaultNtag215::writeNdef(io,rfid.uid.uidByte,ndefUid.c_str(),ndefTagId.c_str(),ndefUrl.c_str(),true,true);
     if(result!=MakerVaultNtag215::RESULT_VERIFIED){ndefError="Write/read-back failed";ndefState=7;}
-    else ndefState=5;
+    else ndefState=8;
    }
   }
   rfid.PICC_HaltA();rfid.PCD_StopCrypto1();render();
