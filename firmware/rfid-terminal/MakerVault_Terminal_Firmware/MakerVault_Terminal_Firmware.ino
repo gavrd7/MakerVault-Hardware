@@ -13,6 +13,11 @@
 #include "connected_registration.h"
 #include "scan_lookup.h"
 #include "remote_lookup.h"
+#include "ntag215_feature_gate.h"
+// The experimental writer is excluded at compile time until device acceptance.
+#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+#include "connected_ndef_write.h"
+#endif
 
 // MakerVault handheld UI v0.6.1 -- ESP32-S3 SuperMini, Rev C.3
 // Shared hardware SPI, read-only RFID, all original GPIO assignments.
@@ -911,6 +916,10 @@ void loop(){
  regCheckStatus();
  if(regServerClosed && page==REGISTRATION){regReset();page=MAKERTAGS_MENU;render();}
  remoteLookupPoll();
+#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+ ndefSchedulePoll();
+ ndefScheduleCancel();
+#endif
  if(remoteLookupState==1 && page!=LOOKUP_REQUEST && regState==0){page=LOOKUP_REQUEST;lastPoll=0;render();}
  if(page==LOOKUP_REQUEST){static uint8_t lastRemoteState=255;if(lastRemoteState!=remoteLookupState){lastRemoteState=remoteLookupState;remoteLookupScreen();}}
  if(regState==1 && page!=REGISTRATION){scanResultVisible=false;lastPoll=0;page=REGISTRATION;render();}
