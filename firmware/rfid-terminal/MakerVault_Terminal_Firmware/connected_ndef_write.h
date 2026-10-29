@@ -7,7 +7,7 @@ String ndefId="", ndefUid="", ndefTagId="", ndefUrl="", ndefError="", ndefCancel
 volatile uint8_t ndefState=0;
 // 0 idle; 1 present tag; 2 physical confirm; 3 checking live server;
 // 4 authorized physical write; 5 reporting verification; 6 success; 7 error
-uint32_t ndefLastPoll=0;
+uint32_t ndefLastPoll=0, ndefStarted=0, ndefAuthorizedAt=0;
 volatile bool ndefCancelledFromBrowser=false;
 
 void ndefPendingTask(void *) {
@@ -24,7 +24,7 @@ void ndefPendingTask(void *) {
        MakerVaultNtag215::matchesUid(nullptr,0,uid.c_str())==false &&
        MakerVaultNtag215::hasIdentitySuffix(url.c_str(),tag.c_str())) {
       ndefId=found;ndefUid=uid;ndefTagId=tag;ndefUrl=url;
-      ndefError="";ndefState=1;
+      ndefError="";ndefStarted=millis();ndefState=1;
     }
   }
   mvTask=nullptr;vTaskDelete(nullptr);
@@ -47,7 +47,7 @@ void ndefStatusTask(void *) {
   if(status==200 && mvField(reply,"state")=="pending" &&
      mvField(reply,"uid")==ndefUid && mvField(reply,"url")==ndefUrl &&
      mvField(reply,"maker_tag_id")==ndefTagId)
-    ndefState=4;
+    {ndefAuthorizedAt=millis();ndefState=4;}
   else {
     ndefError="Request cancelled or changed";
     ndefState=7;
@@ -108,5 +108,16 @@ void ndefReset(bool cancelServer) {
   if(cancelServer && ndefId.length()==36 && ndefState!=6)
     ndefCancelId=ndefId;
   ndefState=0;ndefId="";ndefUid="";ndefTagId="";ndefUrl="";
-  ndefError="";ndefLastPoll=millis();
+  ndefError="";ndefStarted=0;ndefAuthorizedAt=0;ndefLastPoll=millis();
+}
+
+// Call from loop, never from an HTTPS task. Authorization is short lived,
+// including when the tag is removed while awaiting the next presentation.
+void ndefExpireLocal(){
+ if(ndefState>=1 && ndefState<=5 &&
+    ((uint32_t)(millis()-ndefStarted)>270000UL ||
+     (ndefState==4 && (uint32_t)(millis()-ndefAuthorizedAt)>15000UL) ||
+     !mvPairVerified || !mvEndpointApproved())){
+  ndefError="Request expired; start again";ndefState=7;
+ }
 }
