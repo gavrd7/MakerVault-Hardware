@@ -35,8 +35,14 @@ jobs:
             firmware/rfid-terminal/MakerVault_Terminal_Firmware
       - name: Compile experimental writer variant (CI only)
         run: |
-          sed -i 's/#define MAKERVAULT_NDEF_WRITER_EXPERIMENTAL 0/#define MAKERVAULT_NDEF_WRITER_EXPERIMENTAL 1/' \
-            firmware/rfid-terminal/MakerVault_Terminal_Firmware/ntag215_feature_gate.h
           arduino-cli compile --fqbn esp32:esp32:esp32s3:PartitionScheme=huge_app \
-            --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1" \
+            --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1 -DMAKERVAULT_NDEF_WRITER_EXPERIMENTAL=1" \
+            --output-dir ./dist/experimental \
             firmware/rfid-terminal/MakerVault_Terminal_Firmware
+
+      - name: Upload experimental build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: makervault-ndef-experimental-esp32s3
+          path: dist/experimental/*.bin
+          if-no-files-found: error
