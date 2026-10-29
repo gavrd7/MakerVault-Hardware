@@ -1,0 +1,35 @@
+name: ESP32-S3 sketch compile
+
+on:
+  pull_request:
+    paths:
+      - 'firmware/rfid-terminal/MakerVault_Terminal_Firmware/**'
+      - '.github/workflows/esp32-sketch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  arduino-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install ESP32 board core
+        run: |
+          arduino-cli config init
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.12 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+      - name: Install firmware libraries
+        run: |
+          arduino-cli lib install "Adafruit GFX Library"
+          arduino-cli lib install "Adafruit ST7735 and ST7789 Library"
+          arduino-cli lib install "Adafruit NeoPixel"
+          arduino-cli lib install "MFRC522"
+          arduino-cli lib install "ESP32CertBundle"
+      - name: Compile terminal sketch (safe writer gate disabled)
+        run: |
+          arduino-cli compile --fqbn esp32:esp32:esp32s3 \
+            --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1" \
+            firmware/rfid-terminal/MakerVault_Terminal_Firmware
