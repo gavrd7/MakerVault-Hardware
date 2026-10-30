@@ -644,8 +644,8 @@ void registrationScreen(){
   textAt(7,52,regUid.substring(0,REG_TEXT_CHARS).c_str(),WHITE);
   if(regUid.length()>REG_TEXT_CHARS)
    textAt(7,65,regUid.substring(REG_TEXT_CHARS,REG_TEXT_CHARS*2).c_str(),WHITE);
-  textAt(7,87,"Assign this tag?",SKY);
-  bottom("OK: save Back: no");
+  textAt(7,87,regKind=="nfc"?"Assign & write?":"Assign this tag?",SKY);
+  bottom(regKind=="nfc"?"OK: start Back: no":"OK: save Back: no");
  } else if(regState==6) {
   // Both names wrap at word boundaries. Long labels cycle through their
   // remaining lines rather than silently clipping the destination.
@@ -666,10 +666,11 @@ void registrationScreen(){
   }
   bottom("OK: move Back: no");
  } else if(regState==3) {
-  textAt(7,54,"Registering...",SKY);
+  textAt(7,48,"Keep tag in place",SKY);
+  textAt(7,65,"Setting up...",SILVER);
   bottom("Please wait");
  } else if(regState==4) {
-  textAt(7,48,"Tag assigned",GREEN);
+  textAt(7,48,"MakerTag assigned",GREEN);
   bottom("Back: menu");
  } else {
   textAt(7,43,"Registration failed",AMBER);
