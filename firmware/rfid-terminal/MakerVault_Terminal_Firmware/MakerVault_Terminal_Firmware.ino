@@ -1027,6 +1027,7 @@ void loop(){
  scanLookupDispatch();
  regSchedulePoll();
  regCheckStatus();
+ regDispatchSubmit();
  regSubmissionWatchdog();
  if(regServerClosed && page==REGISTRATION){regReset();page=MAKERTAGS_MENU;render();}
  remoteLookupPoll();
