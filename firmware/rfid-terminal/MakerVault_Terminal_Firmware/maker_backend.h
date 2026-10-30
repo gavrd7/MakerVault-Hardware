@@ -392,7 +392,9 @@ void mvLoop(){
  if(WiFi.status()!=WL_CONNECTED){if(!mvTask){mvCheckState=1;mvClearScopes();}return;}
  if(mvTask)return;
  // Periodic, background verification; don't block the encoder or reader.
- if(mvLastCheck==0 || (uint32_t)(millis()-mvLastCheck)>60000)mvRequestCheck();
+ // Failed HTTPS checks retry automatically without button interaction.
+  const uint32_t retryMs=(mvCheckState==3)?60000UL:15000UL;
+  if(mvLastCheck==0 || (uint32_t)(millis()-mvLastCheck)>retryMs)mvRequestCheck();
 }
 
 const char* mvStatusName(){
