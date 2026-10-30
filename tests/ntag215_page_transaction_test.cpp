@@ -41,6 +41,19 @@ int main() {
   assert(verifyReadback(uid,7,uidText,url,after,sizeof(after)));
   // Rewriting the same link is allowed without changing the tag identity.
   assert(writeNdef(blank,uid,uidText,id,url,true,true)==RESULT_VERIFIED);
+  // Genuine NTAG215 factory default has STRG_MOD_EN (CFG0 bit 2) set.
+  // This is an RF modulation setting, not a password or permanent lock.
+  FakeTag factoryDefault;
+  factoryDefault.memory[131][0]=0x04;
+  assert(writeNdef(factoryDefault,uid,uidText,id,url,true,true)==RESULT_VERIFIED);
+  FakeTag mirrored;
+  mirrored.memory[131][0]=0x44; // UID ASCII mirroring is not yet supported.
+  assert(writeNdef(mirrored,uid,uidText,id,url,true,true)==RESULT_UNSAFE);
+  assert(mirrored.writes==0);
+  FakeTag otherCfg;
+  otherCfg.memory[131][0]=0x08;
+  assert(writeNdef(otherCfg,uid,uidText,id,url,true,true)==RESULT_UNSAFE);
+  assert(otherCfg.writes==0);
   FakeTag notConfirmed;
   assert(writeNdef(notConfirmed,uid,uidText,id,url,false,true)==RESULT_UNSAFE);
   assert(notConfirmed.writes==0);
