@@ -665,6 +665,9 @@ void registrationScreen(){
    if(newIndex<newCount)textAt(7,79+i*11,newLines[newIndex].c_str(),WHITE);
   }
   bottom("OK: move Back: no");
+ } else if(regState==7) {
+  textAt(7,48,"Checking MakerTag",SKY);
+  bottom("Keep tag in place");
  } else if(regState==3) {
   textAt(7,48,"Keep tag in place",SKY);
   textAt(7,65,"Setting up...",SILVER);
@@ -994,7 +997,7 @@ void pollTag(){
   }
   regUid=uid;
   regKind=(family==MFRC522::PICC_TYPE_MIFARE_UL?"nfc":"rfid");
-  regState=2;registrationScreen();return;
+  regState=7;registrationScreen();regScheduleProbe();return;
  }
  hasScanned=true;scanResultVisible=true;
  scanLookupBegin(recentUid,rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_UL?"nfc":"rfid");
@@ -1020,6 +1023,7 @@ void loop(){
  provisioningLoop();
  mvLoop();mvHeartbeatLoop();
  regScheduleCancel();
+ regScheduleProbe();
  scanLookupDispatch();
  regSchedulePoll();
  regCheckStatus();
@@ -1044,7 +1048,7 @@ void loop(){
  if(page==LOOKUP_REQUEST){static uint8_t lastRemoteState=255;if(lastRemoteState!=remoteLookupState){lastRemoteState=remoteLookupState;remoteLookupScreen();}}
  if(regState==1 && page!=REGISTRATION){scanResultVisible=false;lastPoll=0;page=REGISTRATION;render();}
  if(page==REGISTRATION && regState==1){static uint32_t lastNamePage=UINT32_MAX;uint32_t currentNamePage=millis()/4000UL;if(currentNamePage!=lastNamePage){lastNamePage=currentNamePage;registrationScreen();}}
- if(page==REGISTRATION && (regState==4||regState==5||regState==6)){static uint8_t lastDrawn=0;static uint32_t lastReassignPage=UINT32_MAX;uint32_t reassignPage=millis()/4000UL;if(lastDrawn!=regState || (regState==6 && lastReassignPage!=reassignPage)){lastDrawn=regState;lastReassignPage=reassignPage;registrationScreen();}}
+ if(page==REGISTRATION && (regState==2||regState==4||regState==5||regState==6||regState==7)){static uint8_t lastDrawn=0;static uint32_t lastReassignPage=UINT32_MAX;uint32_t reassignPage=millis()/4000UL;if(lastDrawn!=regState || (regState==6 && lastReassignPage!=reassignPage)){lastDrawn=regState;lastReassignPage=reassignPage;registrationScreen();}}
  processInputs();
  if(!readerInitDone && (uint32_t)(millis()-lastInputAt)>1100)readerInit();
  if(readerInitDone)pollTag();
