@@ -892,7 +892,15 @@ void pollTag(){
 #endif
  if((!ndefScanning && page!=SCAN && !(page==REGISTRATION && regState==1) && !(page==LOOKUP_REQUEST && remoteLookupState==1))||(page==SCAN && scanResultVisible)||(uint32_t)(millis()-lastPoll)<100)return;
  lastPoll=millis();digitalWrite(TFT_CS,HIGH);
- if(!rfid.PICC_IsNewCardPresent()||!rfid.PICC_ReadCardSerial())return;
+ bool cardReady=rfid.PICC_IsNewCardPresent();
+#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+ if(!cardReady && ndefScanning && ndefAutoFlow){
+   // The initial scan halted the card; WUPA can reselect it while held.
+   byte atqa[2]={};byte atqaSize=sizeof(atqa);
+   cardReady=(rfid.PICC_WakeupA(atqa,&atqaSize)==MFRC522::STATUS_OK);
+ }
+#endif
+ if(!cardReady || !rfid.PICC_ReadCardSerial())return;
  String uid="";
  for(byte i=0;i<rfid.uid.size;i++){
   if(rfid.uid.uidByte[i]<16)uid+='0';uid+=String(rfid.uid.uidByte[i],HEX);
@@ -931,7 +939,12 @@ void pollTag(){
       char existingUrl[MakerVaultNdef::kMaxUriLength+1]={};
       ndefExistingUrl=MakerVaultNdef::decodeUri(area,sizeof(area),existingUrl,sizeof(existingUrl))
         ? String(existingUrl) : String("");
-      ndefState=2;
+      if(ndefAutoFlow) {
+        // Initial physical Confirm covered assignment and NFC programming;
+        // the separate live server authorization check still runs.
+        ndefState=2;
+        ndefConfirm();
+      } else ndefState=2;
     }
     else{
       ndefError=decision==MakerVaultNtag215::WRITE_REJECT_FOREIGN_CONTENT
