@@ -6,6 +6,8 @@
 
 String ndefId="", ndefUid="", ndefTagId="", ndefUrl="", ndefError="", ndefCancelId="", ndefExistingUrl="";
 volatile uint8_t ndefState=0;
+// True only when the physical Confirm button initiated a combined assignment/write.
+bool ndefAutoFlow=false;
 // 0 idle; 1 present tag; 2 physical confirm; 3 checking live server;
 // 4 authorized physical write; 5 reporting verification; 6 success; 7 error
 uint32_t ndefLastPoll=0, ndefStarted=0, ndefAuthorizedAt=0;
@@ -109,7 +111,7 @@ void ndefReset(bool cancelServer) {
   if(cancelServer && ndefId.length()==36 && ndefState!=6)
     ndefCancelId=ndefId;
   ndefState=0;ndefId="";ndefUid="";ndefTagId="";ndefUrl="";ndefExistingUrl="";
-  ndefError="";ndefStarted=0;ndefAuthorizedAt=0;ndefLastPoll=millis();
+  ndefError="";ndefStarted=0;ndefAuthorizedAt=0;ndefAutoFlow=false;ndefLastPoll=millis();
 }
 
 // Call from loop, never from an HTTPS task. Authorization is short lived,
