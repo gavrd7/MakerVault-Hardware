@@ -691,9 +691,9 @@ void ndefWriterScreen(){
  else if(ndefState==2){detailWrapped(ndefExistingUrl.length()?"Overwrite existing URL?":"Write new NFC URL?",AMBER);if(ndefExistingUrl.length())detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);}
  else if(ndefState==3)detailWrapped(ndefAutoFlow?"Keep tag in place":"Checking server authorization",SILVER);
  else if(ndefState==4)detailWrapped(ndefAutoFlow?"Keep tag in place":"Present tag again to write",AMBER);
- else if(ndefState==5)detailWrapped("Reporting read-back verification",SILVER);
- else if(ndefState==6)detailWrapped("Write verified by MakerVault",GREEN);
- else if(ndefState==7)detailWrapped(ndefError,AMBER);
+ else if(ndefState==5)detailWrapped(ndefAutoFlow?"Keep tag in place - verifying":"Reporting read-back verification",SILVER);
+ else if(ndefState==6){detailWrapped(ndefAutoFlow?"MakerTag ready":"Write verified by MakerVault",GREEN);if(ndefAutoFlow)detailWrapped("You may remove tag",SILVER);}
+ else if(ndefState==7){if(ndefAutoFlow)detailWrapped("Assigned; NFC incomplete",AMBER);detailWrapped(ndefError,AMBER);}
  else if(ndefState==8)detailWrapped(ndefAutoFlow?"Keep tag in place":"Present tag to verify",SILVER);
  detailScroll=0;detailPaint("NTAG215 write");
 }
