@@ -896,14 +896,17 @@ void pollTag(){
 #endif
  if((!ndefScanning && page!=SCAN && !(page==REGISTRATION && regState==1) && !(page==LOOKUP_REQUEST && remoteLookupState==1))||(page==SCAN && scanResultVisible)||(uint32_t)(millis()-lastPoll)<100)return;
  lastPoll=millis();digitalWrite(TFT_CS,HIGH);
- bool cardReady=rfid.PICC_IsNewCardPresent();
+ bool cardReady=false;
 #if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
- if(!cardReady && ndefScanning && ndefAutoFlow){
-   // The initial scan halted the card; WUPA can reselect it while held.
+ if(ndefScanning && ndefAutoFlow){
+   // A tag already scanned during registration may be in HALT, not IDLE.
+   // REQA (IsNewCardPresent) only sees IDLE tags. WUPA is required to
+   // reselect the SAME still-present tag without a second physical tap.
    byte atqa[2]={};byte atqaSize=sizeof(atqa);
    cardReady=(rfid.PICC_WakeupA(atqa,&atqaSize)==MFRC522::STATUS_OK);
- }
+ } else
 #endif
+ cardReady=rfid.PICC_IsNewCardPresent();
  if(!cardReady || !rfid.PICC_ReadCardSerial())return;
  String uid="";
  for(byte i=0;i<rfid.uid.size;i++){
