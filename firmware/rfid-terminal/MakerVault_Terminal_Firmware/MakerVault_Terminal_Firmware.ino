@@ -685,12 +685,12 @@ void ndefWriterScreen(){
  detailClear();detailWrapped("Tag: "+ndefTagId,WHITE);
  if(ndefState==1)detailWrapped("Present matching NTAG215",SILVER);
  else if(ndefState==2){detailWrapped(ndefExistingUrl.length()?"Overwrite existing URL?":"Write new NFC URL?",AMBER);if(ndefExistingUrl.length())detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);}
- else if(ndefState==3)detailWrapped("Checking server authorization",SILVER);
- else if(ndefState==4)detailWrapped("Present tag again to write",AMBER);
+ else if(ndefState==3)detailWrapped(ndefAutoFlow?"Keep tag in place":"Checking server authorization",SILVER);
+ else if(ndefState==4)detailWrapped(ndefAutoFlow?"Keep tag in place":"Present tag again to write",AMBER);
  else if(ndefState==5)detailWrapped("Reporting read-back verification",SILVER);
  else if(ndefState==6)detailWrapped("Write verified by MakerVault",GREEN);
  else if(ndefState==7)detailWrapped(ndefError,AMBER);
- else if(ndefState==8)detailWrapped("Present tag to verify",SILVER);
+ else if(ndefState==8)detailWrapped(ndefAutoFlow?"Keep tag in place":"Present tag to verify",SILVER);
  detailScroll=0;detailPaint("NTAG215 write");
 }
 #endif
@@ -1008,6 +1008,13 @@ void loop(){
  if(regServerClosed && page==REGISTRATION){regReset();page=MAKERTAGS_MENU;render();}
  remoteLookupPoll();
 #if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+ if(regState==4 && regAutoWriteId.length()==36 && ndefState==0) {
+   // Registration was physically confirmed; continue the same operation.
+   // Exact UID and URL are bound to the freshly created server write grant.
+   ndefId=regAutoWriteId;ndefUid=regUid;ndefTagId=regAutoTagId;ndefUrl=regAutoUrl;
+   ndefError="";ndefExistingUrl="";ndefStarted=millis();ndefAutoFlow=true;ndefState=1;
+   regReset();page=NDEF_WRITE;lastPoll=0;render();
+ }
  ndefSchedulePoll();
  ndefScheduleCancel();
  ndefExpireLocal();
