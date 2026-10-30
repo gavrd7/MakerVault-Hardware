@@ -45,4 +45,4 @@ A filament weigh station is planned. Final Rev3 enclosure STL, STEP, 3MF and CAD
 
 Do not commit credentials, provisioning logs with secrets, local CA private keys or personal network details. Do not publish before reviewing historical commits and the provenance/licensing of embedded icon and brand images.
 
-**Release:** [Firmware v0.6.0](https://github.com/gavrd7/MakerVault-Hardware/releases) adds online Maker Tag UID lookup, registration, confirmed reassignment and cancellation/recovery. Physical tag-memory writes, NDEF encoding and Creality CFS payload writing are not supported. Note: the existing published release tag is `v.0.6.0`; that spelling is preserved here rather than silently changing the Git tag.
+**Release:** [Firmware v0.6.0](https://github.com/gavrd7/MakerVault-Hardware/releases) adds online MakerTag UID lookup, registration, confirmed reassignment and cancellation/recovery. Physical tag-memory writes, NDEF encoding and Creality CFS payload writing are not supported. Note: the existing published release tag is `v.0.6.0`; that spelling is preserved here rather than silently changing the Git tag.
