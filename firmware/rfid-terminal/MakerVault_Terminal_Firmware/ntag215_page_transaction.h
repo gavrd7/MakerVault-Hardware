@@ -48,7 +48,7 @@ inline bool inspectMemory(PageIO &io, const uint8_t uid[7], MemoryInfo &info) {
   // Nondefault mirror configuration is deliberately unsupported.
   if (cfg0[3] != 0xFF || cfg1[0] != 0x00 || cfg0[0] != 0x00)
     info.writable = false;
-#ifndef MAKERVAULT_MFRC522_TEST
+#if defined(ARDUINO) && !defined(MAKERVAULT_MFRC522_TEST)
   // Diagnostic only. Do not expose authentication secrets or change locks.
   // Helps distinguish genuine lock bits from a non-default configuration.
   Serial.printf("[NDEF] CC=%02X %02X %02X %02X static=%02X %02X dynamic=%02X %02X %02X cfg0[0]=%02X AUTH0=%02X ACCESS=%02X supported=%d writable=%d\\n",
