@@ -939,9 +939,14 @@ void pollTag(){
       char existingUrl[MakerVaultNdef::kMaxUriLength+1]={};
       ndefExistingUrl=MakerVaultNdef::decodeUri(area,sizeof(area),existingUrl,sizeof(existingUrl))
         ? String(existingUrl) : String("");
-      if(ndefAutoFlow) {
-        // Initial physical Confirm covered assignment and NFC programming;
-        // the separate live server authorization check still runs.
+      if(ndefAutoFlow && ndefExistingUrl==ndefUrl &&
+         MakerVaultNtag215::verifyReadback(rfid.uid.uidByte,rfid.uid.size,
+                                            ndefUid.c_str(),ndefUrl.c_str(),area,sizeof(area))){
+        // Already programmed with this permanent URL: no unnecessary write.
+        ndefState=5;
+      } else if(ndefAutoFlow) {
+        // One physical Confirm covered assignment and NFC programming.
+        // The server still reauthorizes the exact UID + URL before a write.
         ndefState=2;
         ndefConfirm();
       } else ndefState=2;
