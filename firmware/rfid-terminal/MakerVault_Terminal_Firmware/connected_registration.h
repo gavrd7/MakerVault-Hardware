@@ -6,6 +6,7 @@ String regId="", regTarget="", regRecordCode="", regUid="", regKind="", regError
 volatile uint8_t regState=0; // 0 idle; 1 request ready; 2 scanned+ready; 3 sending; 4 success; 5 error; 6 reassignment review; 7 preflight
 uint32_t regLastCheck=0,regLastStatusCheck=0,regSubmitStarted=0;
 volatile bool regServerClosed=false;
+volatile bool regSendQueued=false;
 
 void regPendingTask(void *) {
   String body;
@@ -115,13 +116,21 @@ void regSchedulePoll() {
   if(xTaskCreatePinnedToCore(regPendingTask,"mv_reg_poll",12288,nullptr,1,&mvTask,0)!=pdPASS)
     mvTask=nullptr;
 }
-bool regSubmit(const String &uid,const String &kind) {
-  if(regState!=2 && regState!=6||regId.length()!=36||mvTask||!mvCanWriteTags||
-     !mvEndpointApproved())return false;
-  regUid=uid;regKind=kind;regSubmitStarted=millis();regState=3;
-  if(xTaskCreatePinnedToCore(regCompleteTask,"mv_reg_send",12288,nullptr,1,&mvTask,0)!=pdPASS) {
-    regState=5;regError="Insufficient memory";mvTask=nullptr;return false;
+void regDispatchSubmit() {
+  if(!regSendQueued || regState!=3 || mvTask || regServerClosed)return;
+  regSendQueued=false;
+  if(xTaskCreatePinnedToCore(regCompleteTask,"mv_reg_send",12288,nullptr,1,&mvTask,0)!=pdPASS){
+    regState=5;regError="Insufficient memory";mvTask=nullptr;
   }
+}
+bool regSubmit(const String &uid,const String &kind) {
+  if((regState!=2 && regState!=6) || regId.length()!=36 ||
+     !mvCanWriteTags || !mvEndpointApproved() || regServerClosed)return false;
+  regUid=uid;regKind=kind;regSubmitStarted=millis();regState=3;
+  // Preserve the user's one physical confirmation even if a harmless
+  // status poll still owns the shared HTTPS task slot.
+  regSendQueued=true;
+  regDispatchSubmit();
   return true;
 }
 String regCancelId="";
@@ -148,7 +157,7 @@ void regCancel() {
 }
 void regReset() {
   regSuppressedId=regId;
-  regState=0;regId="";regUid="";regKind="";regTarget="";regRecordCode="";regError="";regReassignToken="";regPreviousLabel="";regServerClosed=false;regSubmitStarted=0;regAutoWriteId="";regAutoUrl="";regAutoTagId="";regLastCheck=millis();
+  regState=0;regId="";regUid="";regKind="";regTarget="";regRecordCode="";regError="";regReassignToken="";regPreviousLabel="";regServerClosed=false;regSendQueued=false;regSubmitStarted=0;regAutoWriteId="";regAutoUrl="";regAutoTagId="";regLastCheck=millis();
 }
 
 // A network operation must never strand the terminal on "Registering...".
