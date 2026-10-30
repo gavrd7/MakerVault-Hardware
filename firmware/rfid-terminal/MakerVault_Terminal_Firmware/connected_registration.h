@@ -3,7 +3,7 @@
 // Reuses the paired MakerVault HTTPS client, scoped credential and task slot.
 String regAutoWriteId="", regAutoUrl="", regAutoTagId="";
 String regId="", regTarget="", regRecordCode="", regUid="", regKind="", regError="", regSuppressedId="", regReassignToken="", regPreviousLabel="";
-volatile uint8_t regState=0; // 0 idle; 1 request ready; 2 tag scanned; 3 sending; 4 success; 5 error; 6 reassign confirmation
+volatile uint8_t regState=0; // 0 idle; 1 request ready; 2 scanned+ready; 3 sending; 4 success; 5 error; 6 reassignment review; 7 preflight
 uint32_t regLastCheck=0,regLastStatusCheck=0,regSubmitStarted=0;
 volatile bool regServerClosed=false;
 
@@ -62,6 +62,33 @@ void regCompleteTask(void *) {
   }
   mvTask=nullptr;vTaskDelete(nullptr);
 }
+void regProbeTask(void *) {
+  String response;
+  const String payload="{\"kind\":\""+regKind+"\",\"uid\":\""+regUid+"\"}";
+  const int status=mvHttps("/api/device/v1/tag-registration/"+regId+"/probe/","POST",payload,response,true);
+  if(status==200){
+    const bool reassignment=response.indexOf("\"reassign_required\": true")>=0 ||
+                            response.indexOf("\"reassign_required\":true")>=0;
+    if(reassignment){
+      regReassignToken=mvField(response,"reassign_token");
+      regPreviousLabel=mvField(response,"current_label");
+      if(regReassignToken.length())regState=6;
+      else{regError="Missing reassignment confirmation";regState=5;}
+    }else regState=2;
+  }else{
+    regError=status==410?"Request expired":status==409?"Tag not available":"Cannot check tag";
+    regState=5;
+  }
+  mvTask=nullptr;vTaskDelete(nullptr);
+}
+void regScheduleProbe() {
+  if(regState!=7 || mvTask || regId.length()!=36 || !mvPairVerified ||
+     !mvEndpointApproved() || WiFi.status()!=WL_CONNECTED)return;
+  if(xTaskCreatePinnedToCore(regProbeTask,"mv_reg_probe",12288,nullptr,1,&mvTask,0)!=pdPASS){
+    regError="Cannot start tag check";regState=5;mvTask=nullptr;
+  }
+}
+
 void regStatusTask(void *) {
   String response;
   int code=mvHttps("/api/device/v1/tag-registration/"+regId+"/status/","GET","",response,true);
