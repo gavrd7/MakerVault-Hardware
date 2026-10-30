@@ -1,5 +1,5 @@
 #pragma once
-// Phase 1 browser-initiated Maker Tag handoff. No physical tag memory writes.
+// Phase 1 browser-initiated MakerTag handoff. No physical tag memory writes.
 // Reuses the paired MakerVault HTTPS client, scoped credential and task slot.
 String regId="", regTarget="", regRecordCode="", regUid="", regKind="", regError="", regSuppressedId="", regReassignToken="", regPreviousLabel="";
 volatile uint8_t regState=0; // 0 idle; 1 request ready; 2 tag scanned; 3 sending; 4 success; 5 error; 6 reassign confirmation
