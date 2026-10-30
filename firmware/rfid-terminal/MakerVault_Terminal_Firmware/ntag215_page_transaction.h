@@ -46,7 +46,10 @@ inline bool inspectMemory(PageIO &io, const uint8_t uid[7], MemoryInfo &info) {
   // NTAG215 CFG0 page 0x83 byte 3: AUTH0 must be FF (password off).
   // CFG1 page 0x84 byte 0: ACCESS must be 00 (default/unprotected).
   // Nondefault mirror configuration is deliberately unsupported.
-  if (cfg0[3] != 0xFF || cfg1[0] != 0x00 || cfg0[0] != 0x00)
+  // STRG_MOD_EN (CFG0 bit 2) defaults to 1 on genuine NTAG215 chips.
+  // It changes RF modulation strength, not access permissions or mirroring.
+  // Reject all other nondefault MIRROR/STRG/RFUI bits conservatively.
+  if (cfg0[3] != 0xFF || cfg1[0] != 0x00 || (cfg0[0] & static_cast<uint8_t>(~0x04)) != 0)
     info.writable = false;
 #if defined(ARDUINO) && !defined(MAKERVAULT_MFRC522_TEST)
   // Diagnostic only. Do not expose authentication secrets or change locks.
