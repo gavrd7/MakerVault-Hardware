@@ -1,57 +1,43 @@
-# ESP32-S3 NFC writing — first hardware acceptance
+# ESP32-S3 single-scan MakerTags acceptance (experimental)
 
 This procedure applies only to the MakerVault ESP32-S3 handheld terminal.
-It is **not** a released or production-approved writer.
+**This is not a production-approved writer.** Test with disposable NTAG215 tags.
 
-## Before flashing
+## Prerequisites
 
-- Keep a copy of the last known working Arduino sketch.
-- Build from the draft hardware PR with the experimental NFC writer explicitly enabled.
-- Confirm full Arduino compilation passes. Preserve Wi-Fi/pairing settings; never erase all flash to test this feature.
-- Stage MakerVault's corresponding NFC backend PR on a disposable/staging installation.
-- Use only spare NTAG215 tags; **do not write existing important tags** until inspection diagnostics pass.
+- Stage the matching MakerVault PR with database migrations applied.
+- Use the experimental firmware sketch from the matching hardware PR and preserve existing pairing settings.
+- Require the terminal to advertise `ntag215_ndef_write`, a paired HTTPS endpoint and `tags:write` permission.
+- Record the current firmware version and keep the last known working firmware available.
+- Use a fresh, disposable NTAG215 with no important contents.
 
-## 1. Regression
+## 1. Existing functionality
 
-Boot; check TFT, encoder, Back and Confirm, Wi-Fi, TLS pairing, heartbeats,
-ordinary UID scan, browser-requested registration and lookup.
+Check Wi-Fi, HTTPS trust, pairing, heartbeat, UID lookup, Back/Confirm and regular MakerTags reading. No tag should be altered by lookup.
 
-## 2. Read-only pre-write inspection
+## 2. One-scan assignment and programming
 
-Create/assign a MakerTag using the unified Add MakerTag flow, confirm its
-seven-byte UID, then select Write / overwrite NFC tag -> paired ESP32-S3.
-Check the preview contains the staging HTTPS scheme, address, port and
-`/t/MV-XXXXXXXX/` identity. Start the request and present the tag once.
+1. In **Create MakerTag**, select RFID/NFC, an inventory item or spool and **Use MakerVault Terminal**.
+2. Verify the proposed MakerVault address, including port; optionally use **Override address**.
+3. Start the operation, present the disposable NTAG215 **once**, and keep it against the reader.
+4. The terminal checks the UID and existing assignment, then shows **Assign & write?** or the existing-record reassignment review.
+5. Press **Confirm once**, then **keep the tag in place** while the server registers/reassigns it and authorises the NFC URL.
+6. Wait for the terminal to inspect the physical tag, program if necessary, reselect/read back, and report completion.
+7. Remove it only after verified success. Check the NDEF URL independently with a phone and confirm it resolves to the assigned MakerTag.
+8. Confirm the MakerTags home list updates without a manual browser refresh.
 
-**Do not press physical Confirm yet.** Record the *exact* display result:
-- `Confirm physical write?`: inspection accepted;
-- `Wrong tag UID`: wrong physical tag;
-- `Cannot read tag config`, `Not NTAG215 (CC)`,
-  `Locked / protected tag`, `Cannot read tag memory`:
-  collect a serial log (115200 baud) and keep physical writing disabled;
-- `Existing NDEF needs override`: data does not match the existing
-  MakerVault identity, so it is **intentionally not overwritten**.
+If the reader loses tag contact, completion must not be reported. Capture the error screen and 115200-baud serial output and stop testing that tag until its state is checked.
 
-The same UID being registered in MakerVault does not establish any fact
-about the chip's current NDEF content. Never bypass inspection failures.
+## 3. Reassignment
 
-## 3. Write only after read-only acceptance
+Reassign an existing MakerTag to a different record. The terminal must display the **previous** and **proposed** assignments before the **single physical confirmation**. An unchanged permanent MakerTag URL must not be rewritten. Verify that its URL resolves to the new target and the list changes immediately.
 
-On a disposable empty NTAG215, verify UID and URL again, press Confirm,
-remove and re-present the tag when prompted, and inspect the completion
-state. Independently read with a phone and verify the staging record.
-Abort and capture logs on any mismatch.
+## 4. Negative and safety cases
 
-## 4. Overwrite cases
+On disposable test tags, confirm all of the following are blocked or produce clear errors: wrong UID, unsupported tag, protected memory, unrelated existing NDEF contents, cancelled/expired server request, lost HTTPS trust and physical removal before verification.
 
-Same MakerTag NDEF URL may be updated after explicit browser request and
-physical confirmation. Foreign content or a different identity must not
-be overwritten silently. Additional authorization/override UI must be
-reviewed before claiming broad overwrite support.
+Do not disable lock/configuration/UID checks or substitute a saved UID for a freshly selected physical tag.
 
-## Acceptance criteria
+## Acceptance
 
-No writes occur during scanning, lookup, registration, initial inspection,
-cancel, wrong UID, expired request, locked tag, or failed TLS. The terminal
-must not report completion until its own fresh read-back matches the exact
-authorized UID and URL and the staging server acknowledges completion.
+No ordinary scan writes memory. A combined assignment may commit the database before NFC programming; the UI must explicitly distinguish that partial result from fully verified success. A valid finished state requires the correct UID, exact permanent URL, fresh memory read-back, and acknowledged server completion. Existing public releases remain unchanged until physical testing and review pass.
