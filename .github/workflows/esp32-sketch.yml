@@ -28,34 +28,34 @@ jobs:
           arduino-cli lib install "Adafruit NeoPixel"
           arduino-cli lib install "MFRC522"
           arduino-cli lib install "ESP32CertBundle"
-      - name: Compile standard v0.7 firmware (NFC writing enabled by default)
+      - name: Compile development sketch (NFC writing enabled by default)
         run: |
           arduino-cli compile --fqbn esp32:esp32:esp32s3:PartitionScheme=huge_app \
             --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1" \
             firmware/rfid-terminal/MakerVault_Terminal_Firmware
-      - name: Compile v0.7 NFC writer release binary
+      - name: Compile v0.8 development test binary
         run: |
           arduino-cli compile --fqbn esp32:esp32:esp32s3:PartitionScheme=huge_app \
             --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1" \
             --output-dir ./dist/release \
             firmware/rfid-terminal/MakerVault_Terminal_Firmware
 
-      - name: Upload v0.7 writer-enabled firmware
+      - name: Upload v0.8 development firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: makervault-terminal-v0.7-esp32s3
+          name: makervault-terminal-v0.8-dev-esp32s3
           path: dist/release/*.bin
           if-no-files-found: error
 
-      - name: Package v0.7 Arduino source (writer enabled)
+      - name: Package v0.8-dev Arduino source (writer enabled)
         run: |
           mkdir -p dist/source
           cp -a firmware/rfid-terminal/MakerVault_Terminal_Firmware dist/source/
           cd dist/source
-          zip -qr ../MakerVault_Terminal_v0.7_Arduino.zip MakerVault_Terminal_Firmware
-      - name: Upload v0.7 Arduino sketch ZIP
+          zip -qr ../MakerVault_Terminal_v0.8_dev_Arduino.zip MakerVault_Terminal_Firmware
+      - name: Upload v0.8-dev Arduino sketch ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: makervault-terminal-v0.7-arduino-sketch
-          path: dist/MakerVault_Terminal_v0.7_Arduino.zip
+          name: makervault-terminal-v0.8-dev-arduino-sketch
+          path: dist/MakerVault_Terminal_v0.8_dev_Arduino.zip
           if-no-files-found: error
