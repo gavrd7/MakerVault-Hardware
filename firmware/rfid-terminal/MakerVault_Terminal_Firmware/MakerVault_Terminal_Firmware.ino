@@ -644,7 +644,8 @@ void registrationScreen(){
   textAt(7,52,regUid.substring(0,REG_TEXT_CHARS).c_str(),WHITE);
   if(regUid.length()>REG_TEXT_CHARS)
    textAt(7,65,regUid.substring(REG_TEXT_CHARS,REG_TEXT_CHARS*2).c_str(),WHITE);
-  textAt(7,87,regKind=="nfc"?"Assign & write?":"Assign this tag?",SKY);
+  textAt(7,83,regKind=="nfc"?"Assign & write?":"Assign this tag?",SKY);
+  if(regKind=="nfc")textAt(7,96,"Hold same tag in place",SILVER);
   bottom(regKind=="nfc"?"OK: start Back: no":"OK: save Back: no");
  } else if(regState==6) {
   // Both names wrap at word boundaries. Long labels cycle through their
@@ -687,14 +688,14 @@ void registrationScreen(){
 #if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
 void ndefWriterScreen(){
  detailClear();detailWrapped("Tag: "+ndefTagId,WHITE);
- if(ndefState==1)detailWrapped("Present matching NTAG215",SILVER);
+ if(ndefState==1)detailWrapped(ndefAutoFlow?"Keep / return same tag":"Present matching NTAG215",SILVER);
  else if(ndefState==2){detailWrapped(ndefExistingUrl.length()?"Overwrite existing URL?":"Write new NFC URL?",AMBER);if(ndefExistingUrl.length())detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);}
  else if(ndefState==3)detailWrapped(ndefAutoFlow?"Keep tag in place":"Checking server authorization",SILVER);
- else if(ndefState==4)detailWrapped(ndefAutoFlow?"Keep tag in place":"Present tag again to write",AMBER);
+ else if(ndefState==4)detailWrapped(ndefAutoFlow?"Keep / return same tag":"Present tag again to write",AMBER);
  else if(ndefState==5)detailWrapped(ndefAutoFlow?"Keep tag in place - verifying":"Reporting read-back verification",SILVER);
  else if(ndefState==6){detailWrapped(ndefAutoFlow?"MakerTag ready":"Write verified by MakerVault",GREEN);if(ndefAutoFlow)detailWrapped("You may remove tag",SILVER);}
  else if(ndefState==7){if(ndefAutoFlow)detailWrapped("Assigned; NFC incomplete",AMBER);detailWrapped(ndefError,AMBER);}
- else if(ndefState==8)detailWrapped(ndefAutoFlow?"Keep tag in place":"Present tag to verify",SILVER);
+ else if(ndefState==8)detailWrapped(ndefAutoFlow?"Keep / return same tag":"Present tag to verify",SILVER);
  detailScroll=0;detailPaint("NTAG215 write");
 }
 #endif
