@@ -294,15 +294,15 @@ int regWrapLines(const String &source, String *lines);
 void scanTypeWrapped(int y, uint16_t color){
  String value=recentType;
  const int maxChars=19; // 128px - 14px margins, 6px per character
- if(value.length()<=maxChars){textAt(7,y,value.c_str(),color);return;}
+ if(value.length()<=maxChars){centeredAt(y,value.c_str(),color);return;}
  int split=value.lastIndexOf(' ',maxChars);
  if(split<6)split=maxChars;
  String first=value.substring(0,split);
  String second=value.substring(split);
  second.trim();
- textAt(7,y,first.c_str(),color);
+ centeredAt(y,first.c_str(),color);
  if(second.length()>maxChars)second=second.substring(0,maxChars-1)+"~";
- textAt(7,y+12,second.c_str(),color);
+ centeredAt(y+12,second.c_str(),color);
 }
 void scanPage(){
  display->fillScreen(BG);
@@ -333,12 +333,11 @@ void scanPage(){
  }else if(scanLookupState==3){
   // Material-style unknown identity: filled amber status disc with a
   // high-contrast white help glyph, rather than an outlined circle.
-  display->fillCircle(64,54,20,AMBER);
-  textAt(58,46,"?",WHITE,2);
+  display->fillCircle(64,48,16,AMBER);
+  textAt(58,40,"?",WHITE,2);
   // Restore normal text size before centeredAt measures the label bounds.
   display->setTextSize(1);
-  centeredAt(78,"Not",AMBER);
-  centeredAt(90,"MakerTag",AMBER);
+  centeredAt(73,"Not MakerTag",AMBER);
  }else if(scanLookupState==1){
   centeredAt(62,"Checking tag...",SKY);
  }else if(scanLookupState==4){
