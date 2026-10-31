@@ -15,7 +15,7 @@ Firmware and hardware documentation for [MakerVault](https://github.com/gavrd7/M
 
 ## RFID/NFC handheld terminal
 
-**Current firmware:** v0.6.0 (ESP32-S3 SuperMini, MFRC522 SPI, ST7735S 128×128 TFT, KY-040 encoder and two buttons). The v0.5.1.14 release is the prior stable baseline; acceptance records are retained for historical reference.
+**Current firmware:** v0.7 (ESP32-S3 SuperMini, MFRC522 SPI, ST7735S 128×128 TFT, KY-040 encoder and two buttons). The v0.5.1.14 release is the prior stable baseline; acceptance records are retained for historical reference.
 
 - [Arduino source](firmware/rfid-terminal/MakerVault_Terminal_Firmware/)
 - [Firmware build setup](firmware/rfid-terminal/BUILD.md)
@@ -45,4 +45,11 @@ A filament weigh station is planned. Final Rev3 enclosure STL, STEP, 3MF and CAD
 
 Do not commit credentials, provisioning logs with secrets, local CA private keys or personal network details. Do not publish before reviewing historical commits and the provenance/licensing of embedded icon and brand images.
 
-**Release:** [Firmware v0.6.0](https://github.com/gavrd7/MakerVault-Hardware/releases) adds online Maker Tag UID lookup, registration, confirmed reassignment and cancellation/recovery. Physical tag-memory writes, NDEF encoding and Creality CFS payload writing are not supported. Note: the existing published release tag is `v.0.6.0`; that spelling is preserved here rather than silently changing the Git tag.
+**Release:** [Firmware v0.6.0](https://github.com/gavrd7/MakerVault-Hardware/releases) adds online MakerTag UID lookup, registration, confirmed reassignment and cancellation/recovery. Physical tag-memory writes, NDEF encoding and Creality CFS payload writing are not supported. Note: the existing published release tag is `v.0.6.0`; that spelling is preserved here rather than silently changing the Git tag.
+
+
+## MakerVault Terminal v0.7 — MakerTags NFC writing
+
+Firmware v0.7 pairs with MakerVault v1.4.5. From MakerVault, select a record and **Use MakerVault Terminal**, confirm the generated HTTPS URL (including any port), present an NTAG215 once and confirm on the handheld. The terminal checks UID, tag capability container and lock/protection status, reviews existing content, writes the canonical `/t/MV-XXXXXXXX/` NFC Forum URL, reads back the memory and acknowledges verification to MakerVault. Cancellation and expiry prevent reuse of stale authorisations. Reassignment preserves the stable URL.
+
+Generic RFID tags (including Creality CFS MIFARE Classic 1K) use UID association and lookup only; they are not reformatted or written by the NTAG215 workflow. NFC writing is enabled by default in v0.7 (`MAKERVAULT_NDEF_WRITER_ENABLED=1`); use the v0.7 release's designated verified build, not an older read-only binary. HTTPS trust and `tags:write` permission remain mandatory. For safety requirements and verification, see [writer safety](docs/ntag215-ndef-writer-safety.md) and [physical acceptance](docs/ntag215-esp32s3-acceptance.md).

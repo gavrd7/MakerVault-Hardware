@@ -1,10 +1,12 @@
 #pragma once
-// Phase 1 browser-initiated Maker Tag handoff. No physical tag memory writes.
+// Phase 1 browser-initiated MakerTag handoff. No physical tag memory writes.
 // Reuses the paired MakerVault HTTPS client, scoped credential and task slot.
+String regAutoWriteId="", regAutoUrl="", regAutoTagId="";
 String regId="", regTarget="", regRecordCode="", regUid="", regKind="", regError="", regSuppressedId="", regReassignToken="", regPreviousLabel="";
-volatile uint8_t regState=0; // 0 idle; 1 request ready; 2 tag scanned; 3 sending; 4 success; 5 error; 6 reassign confirmation
-uint32_t regLastCheck=0,regLastStatusCheck=0;
+volatile uint8_t regState=0; // 0 idle; 1 request ready; 2 scanned+ready; 3 sending; 4 success; 5 error; 6 reassignment review; 7 preflight
+uint32_t regLastCheck=0,regLastStatusCheck=0,regSubmitStarted=0;
 volatile bool regServerClosed=false;
+volatile bool regSendQueued=false;
 
 void regPendingTask(void *) {
   String body;
@@ -29,7 +31,25 @@ void regCompleteTask(void *) {
   if(regReassignToken.length()) payload="{\"kind\":\""+regKind+"\",\"uid\":\""+regUid+"\",\"reassign_token\":\""+regReassignToken+"\"}";
   int status=mvHttps("/api/device/v1/tag-registration/"+regId+"/complete/",
                      "POST",payload,response,true);
-  if(status==201||status==200) {regState=4;regError="";}
+  Serial.printf("[REGISTRATION] Complete HTTP status=%d (request response %u bytes)\n",status,(unsigned)response.length());
+  if(status==201||status==200) {
+    regAutoWriteId=mvField(response,"ndef_write_id");
+    regAutoUrl=mvField(response,"ndef_url");
+    regAutoTagId=mvField(response,"ndef_tag_id");
+    if(regAutoWriteId.length()!=36 || regAutoTagId.length()!=11 ||
+       regAutoUrl.length()<20 || regAutoUrl.length()>240){
+      // Registration can succeed without an NFC grant (e.g. another pending
+      // request). Never leave the device claiming success while the browser
+      // waits forever for a physical write that cannot be authorised.
+      Serial.printf("[REGISTRATION] Assigned, but NFC grant missing/invalid (id=%u tag=%u url=%u)\\n",
+        (unsigned)regAutoWriteId.length(),(unsigned)regAutoTagId.length(),(unsigned)regAutoUrl.length());
+      regAutoWriteId="";regAutoUrl="";regAutoTagId="";
+      regError="Assigned; NFC unavailable";
+      regState=5;
+    }else{
+      regState=4;regError="";
+    }
+  }
   else {
     if(status==409 && (response.indexOf("\"reassign_required\": true")>=0 ||
        response.indexOf("\"reassign_required\":true")>=0)) {
@@ -51,6 +71,33 @@ void regCompleteTask(void *) {
   }
   mvTask=nullptr;vTaskDelete(nullptr);
 }
+void regProbeTask(void *) {
+  String response;
+  const String payload="{\"kind\":\""+regKind+"\",\"uid\":\""+regUid+"\"}";
+  const int status=mvHttps("/api/device/v1/tag-registration/"+regId+"/probe/","POST",payload,response,true);
+  if(status==200){
+    const bool reassignment=response.indexOf("\"reassign_required\": true")>=0 ||
+                            response.indexOf("\"reassign_required\":true")>=0;
+    if(reassignment){
+      regReassignToken=mvField(response,"reassign_token");
+      regPreviousLabel=mvField(response,"current_label");
+      if(regReassignToken.length())regState=6;
+      else{regError="Missing reassignment confirmation";regState=5;}
+    }else regState=2;
+  }else{
+    regError=status==410?"Request expired":status==409?"Tag not available":"Cannot check tag";
+    regState=5;
+  }
+  mvTask=nullptr;vTaskDelete(nullptr);
+}
+void regScheduleProbe() {
+  if(regState!=7 || mvTask || regId.length()!=36 || !mvPairVerified ||
+     !mvEndpointApproved() || WiFi.status()!=WL_CONNECTED)return;
+  if(xTaskCreatePinnedToCore(regProbeTask,"mv_reg_probe",12288,nullptr,1,&mvTask,0)!=pdPASS){
+    regError="Cannot start tag check";regState=5;mvTask=nullptr;
+  }
+}
+
 void regStatusTask(void *) {
   String response;
   int code=mvHttps("/api/device/v1/tag-registration/"+regId+"/status/","GET","",response,true);
@@ -77,13 +124,21 @@ void regSchedulePoll() {
   if(xTaskCreatePinnedToCore(regPendingTask,"mv_reg_poll",12288,nullptr,1,&mvTask,0)!=pdPASS)
     mvTask=nullptr;
 }
-bool regSubmit(const String &uid,const String &kind) {
-  if(regState!=2 && regState!=6||regId.length()!=36||mvTask||!mvCanWriteTags||
-     !mvEndpointApproved())return false;
-  regUid=uid;regKind=kind;regState=3;
-  if(xTaskCreatePinnedToCore(regCompleteTask,"mv_reg_send",12288,nullptr,1,&mvTask,0)!=pdPASS) {
-    regState=5;regError="Insufficient memory";mvTask=nullptr;return false;
+void regDispatchSubmit() {
+  if(!regSendQueued || regState!=3 || mvTask || regServerClosed)return;
+  regSendQueued=false;
+  if(xTaskCreatePinnedToCore(regCompleteTask,"mv_reg_send",12288,nullptr,1,&mvTask,0)!=pdPASS){
+    regState=5;regError="Insufficient memory";mvTask=nullptr;
   }
+}
+bool regSubmit(const String &uid,const String &kind) {
+  if((regState!=2 && regState!=6) || regId.length()!=36 ||
+     !mvCanWriteTags || !mvEndpointApproved() || regServerClosed)return false;
+  regUid=uid;regKind=kind;regSubmitStarted=millis();regState=3;
+  // Preserve the user's one physical confirmation even if a harmless
+  // status poll still owns the shared HTTPS task slot.
+  regSendQueued=true;
+  regDispatchSubmit();
   return true;
 }
 String regCancelId="";
@@ -110,5 +165,17 @@ void regCancel() {
 }
 void regReset() {
   regSuppressedId=regId;
-  regState=0;regId="";regUid="";regKind="";regTarget="";regRecordCode="";regError="";regReassignToken="";regPreviousLabel="";regServerClosed=false;regLastCheck=millis();
+  regState=0;regId="";regUid="";regKind="";regTarget="";regRecordCode="";regError="";regReassignToken="";regPreviousLabel="";regServerClosed=false;regSendQueued=false;regSubmitStarted=0;regAutoWriteId="";regAutoUrl="";regAutoTagId="";regLastCheck=millis();
+}
+
+// A network operation must never strand the terminal on "Registering...".
+// We do not discard or cancel the in-flight task: the server may already
+// have committed the tag. Treat this as an uncertain result and ask the user
+// to check the browser; the next poll can reconcile the server state.
+void regSubmissionWatchdog() {
+  if (regState!=3 || !regSubmitStarted) return;
+  if ((uint32_t)(millis()-regSubmitStarted) < 30000UL) return;
+  Serial.println("[REGISTRATION] Completion response delayed >30 s; check MakerVault for saved tag");
+  regError="Response delayed; check MakerVault";
+  regState=5;
 }

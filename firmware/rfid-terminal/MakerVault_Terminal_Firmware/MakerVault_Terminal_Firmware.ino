@@ -13,8 +13,13 @@
 #include "connected_registration.h"
 #include "scan_lookup.h"
 #include "remote_lookup.h"
+#include "ntag215_feature_gate.h"
+// NTAG215 NFC link writing is enabled in standard v0.7 builds.
+#if MAKERVAULT_NDEF_WRITER_ENABLED
+#include "connected_ndef_write.h"
+#endif
 
-// MakerVault handheld UI v0.6.1 -- ESP32-S3 SuperMini, Rev C.3
+// MakerVault handheld UI v0.7.0 -- ESP32-S3 SuperMini, Rev C.3
 // Shared hardware SPI, read-only RFID, all original GPIO assignments.
 constexpr uint8_t SCK_PIN=12, MOSI_PIN=11, MISO_PIN=13;
 constexpr uint8_t TFT_CS=1, TFT_DC=2, TFT_RST=43;
@@ -34,7 +39,7 @@ constexpr uint16_t BG=0x0843, CARD=0x10C6, NAVY=0x10ED,
 // Write actions remain feature gated until fully implemented. API scope alone
 // never authorises a placeholder to appear as a working device operation.
 constexpr bool MAKERTAG_CREATE_IMPLEMENTED=false, RFID_WRITE_IMPLEMENTED=false;
-enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST};
+enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST,NDEF_WRITE};
 Page page=HOME;
 const char* choices[]={"MakerTags","RFID Tags","Connections","System info"};
 int subSelected=0, detailScroll=0, detailCount=0;
@@ -47,6 +52,8 @@ String pendingDeleteSSID="";
 // Persist manual offline mode independently of remembered SSIDs.
 
 bool scanResultVisible=false, hasScanned=false, knownReader=false;
+// The physical reader is shared, but each menu has distinct result semantics.
+bool scanMakerTagsMode=true;
 uint8_t versionReg=0;
 String recentUid="", recentType="";
 uint32_t lastPoll=0,feedbackUntil=0;
@@ -282,44 +289,66 @@ void simple(const char* title,const char* line1,const char* line2=""){
 // Draw a prominent record identity, then the MakerVault ID; UID is secondary.
 // Declared here because the scan screen reuses the record name wrapping helper.
 int regWrapLines(const String &source, String *lines);
+// Keep tag identity fields within the 128px viewport. Two short rows
+// accommodate long MFRC522 family names without clipping or truncating UID.
+void scanTypeWrapped(int y, uint16_t color){
+ String value=recentType;
+ const int maxChars=19; // 128px - 14px margins, 6px per character
+ if(value.length()<=maxChars){centeredAt(y,value.c_str(),color);return;}
+ int split=value.lastIndexOf(' ',maxChars);
+ if(split<6)split=maxChars;
+ String first=value.substring(0,split);
+ String second=value.substring(split);
+ second.trim();
+ centeredAt(y,first.c_str(),color);
+ if(second.length()>maxChars)second=second.substring(0,maxChars-1)+"~";
+ centeredAt(y+12,second.c_str(),color);
+}
 void scanPage(){
  display->fillScreen(BG);
  if(!scanResultVisible){
-  header("Read tag");
+  header(scanMakerTagsMode?"Scan MakerTag":"Scan RFID Tag");
   display->fillRoundRect(9,32,110,76,9,CARD);
   display->drawRoundRect(9,32,110,76,9,BLUE);
   asset(41,37,MV_SCAN_LARGE,46,46);
   centeredAt(78,"READY TO SCAN",WHITE);
-  centeredAt(92,"Present a tag",SKY);
+  centeredAt(92,scanMakerTagsMode?"Present MakerTag":"Present RFID tag",SKY);
   bottom("Back: menu");return;
  }
- header("Tag detected");
- if(scanLookupState==2){
+ header(scanMakerTagsMode?"MakerTag scan":"RFID scan");
+ if(!scanMakerTagsMode && scanLookupState==2){
+  centeredAt(55,"MakerTag found",GREEN);
+  centeredAt(75,"Use Scan MakerTag",SKY);
+ }else if(scanLookupState==2){
   String nameLines[20];
   int count=regWrapLines(scanLookupName,nameLines);
   int maxLines=min(3,count);
   for(int i=0;i<maxLines;i++)textAt(7,36+i*13,nameLines[i].c_str(),WHITE);
   // The full identifier must fit: MV- plus eight hex chars.
   textAt(7,79,scanLookupCode.c_str(),SKY);
+ }else if(scanLookupState==3 && !scanMakerTagsMode){
+  centeredAt(45,"RFID detected",GREEN);
+  scanTypeWrapped(61,WHITE);
+  centeredAt(84,"Not a MakerTag",SILVER);
  }else if(scanLookupState==3){
   // Material-style unknown identity: filled amber status disc with a
   // high-contrast white help glyph, rather than an outlined circle.
-  display->fillCircle(64,54,20,AMBER);
-  textAt(58,46,"?",WHITE,2);
+  display->fillCircle(64,48,16,AMBER);
+  textAt(58,40,"?",WHITE,2);
   // Restore normal text size before centeredAt measures the label bounds.
   display->setTextSize(1);
-  centeredAt(78,"Not",AMBER);
-  centeredAt(90,"registered",AMBER);
+  centeredAt(73,"Not MakerTag",AMBER);
  }else if(scanLookupState==1){
   centeredAt(62,"Checking tag...",SKY);
  }else if(scanLookupState==4){
-  centeredAt(57,"Lookup unavailable",AMBER);
+  centeredAt(48,"Lookup unavailable",AMBER);
+  if(!scanMakerTagsMode)scanTypeWrapped(63,SILVER);
  }else{
-  centeredAt(52,"TAG READ",GREEN);
-  textAt(7,74,recentType.substring(0,19).c_str(),SILVER);
+  centeredAt(37,"TAG READ",GREEN);
+  scanTypeWrapped(60,SILVER);
  }
  // UID remains visible, small and lower priority.
- textAt(7,100,recentUid.substring(0,19).c_str(),SILVER);
+ textAt(7,97,recentUid.substring(0,19).c_str(),SILVER);
  bottom("Confirm: rescan");
 }
 void remoteLookupScreen(){
@@ -639,8 +668,9 @@ void registrationScreen(){
   textAt(7,52,regUid.substring(0,REG_TEXT_CHARS).c_str(),WHITE);
   if(regUid.length()>REG_TEXT_CHARS)
    textAt(7,65,regUid.substring(REG_TEXT_CHARS,REG_TEXT_CHARS*2).c_str(),WHITE);
-  textAt(7,87,"Assign this tag?",SKY);
-  bottom("OK: save Back: no");
+  textAt(7,83,regKind=="nfc"?"Assign & write?":"Assign this tag?",SKY);
+  if(regKind=="nfc")textAt(7,96,"Keep tag in place",SILVER);
+  bottom(regKind=="nfc"?"OK: start Back: no":"OK: save Back: no");
  } else if(regState==6) {
   // Both names wrap at word boundaries. Long labels cycle through their
   // remaining lines rather than silently clipping the destination.
@@ -660,11 +690,15 @@ void registrationScreen(){
    if(newIndex<newCount)textAt(7,79+i*11,newLines[newIndex].c_str(),WHITE);
   }
   bottom("OK: move Back: no");
+ } else if(regState==7) {
+  textAt(7,48,"Checking MakerTag",SKY);
+  bottom("Keep tag in place");
  } else if(regState==3) {
-  textAt(7,54,"Registering...",SKY);
+  textAt(7,48,"Keep tag in place",SKY);
+  textAt(7,65,"Setting up...",SILVER);
   bottom("Please wait");
  } else if(regState==4) {
-  textAt(7,48,"Tag assigned",GREEN);
+  textAt(7,48,"MakerTag assigned",GREEN);
   bottom("Back: menu");
  } else {
   textAt(7,43,"Registration failed",AMBER);
@@ -675,12 +709,29 @@ void registrationScreen(){
   bottom("Back: menu");
  }
 }
+#if MAKERVAULT_NDEF_WRITER_ENABLED
+void ndefWriterScreen(){
+ detailClear();detailWrapped("Tag: "+ndefTagId,WHITE);
+ if(ndefState==1)detailWrapped(ndefError.length()?ndefError:(ndefAutoFlow?"Keep / return same tag":"Present matching NTAG215"),ndefError.length()?AMBER:SILVER);
+ else if(ndefState==2){detailWrapped(ndefExistingUrl.length()?"Overwrite existing URL?":"Write new NFC URL?",AMBER);if(ndefExistingUrl.length())detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);}
+ else if(ndefState==3)detailWrapped(ndefAutoFlow?"Keep tag in place":"Checking server authorization",SILVER);
+ else if(ndefState==4)detailWrapped(ndefAutoFlow?"Keep / return same tag":"Present tag again to write",AMBER);
+ else if(ndefState==5)detailWrapped(ndefAutoFlow?"Keep tag in place - verifying":"Reporting read-back verification",SILVER);
+ else if(ndefState==6){detailWrapped(ndefAutoFlow?"MakerTag ready":"Write verified by MakerVault",GREEN);if(ndefAutoFlow)detailWrapped("You may remove tag",SILVER);}
+ else if(ndefState==7){if(ndefAutoFlow)detailWrapped("Assigned; NFC incomplete",AMBER);detailWrapped(ndefError,AMBER);}
+ else if(ndefState==8)detailWrapped(ndefAutoFlow?"Keep / return same tag":"Present tag to verify",SILVER);
+ detailScroll=0;detailPaint("NTAG215 write");
+}
+#endif
 void render(){
  switch(page){
   case HOME:home();break;
   case SCAN:scanPage();break;
   case REGISTRATION:registrationScreen();break;
   case LOOKUP_REQUEST:remoteLookupScreen();break;
+#if MAKERVAULT_NDEF_WRITER_ENABLED
+  case NDEF_WRITE:ndefWriterScreen();break;
+#endif
   case RECENT: simple("Recent tag","Not available");break;
   case CONTROLS:simple("Control test","Turn / press", "Back exits");break;
   case CONNECTIONS:connections();break;
@@ -733,7 +784,7 @@ void move(int dir){
 }
 void choose(){
  if(page==MAKERTAGS_MENU||page==RFID_MENU){
-  if(subSelected==0){page=SCAN;scanResultVisible=false;render();}
+  if(subSelected==0){scanMakerTagsMode=(page==MAKERTAGS_MENU);page=SCAN;scanResultVisible=false;scanLookupState=0;render();}
   else if(subSelected<categoryCount()){
    unavailableTitle="Operation unavailable";page=UNAVAILABLE;render();
   }
@@ -775,7 +826,11 @@ void choose(){
  Serial.print("[MENU] Selected: ");Serial.println(choices[selected]);render();
 }
 void back(){
+#if MAKERVAULT_NDEF_WRITER_ENABLED
+ if(page==NDEF_WRITE){ndefReset(ndefState!=6);page=MAKERTAGS_MENU;render();return;}
+#endif
  if(page==LOOKUP_REQUEST && remoteLookupState!=2){remoteLookupReset();page=MAKERTAGS_MENU;render();return;}
+ if(page==REGISTRATION && regState==3){Serial.println("[REGISTRATION] Request still submitting; Back cannot interrupt network task");registrationScreen();return;}
  if(page==REGISTRATION && regState!=3){regCancel();page=MAKERTAGS_MENU;render();return;}
  Serial.println("[BUTTON] BACK");if(page==DELETE_WIFI){pendingDeleteSSID="";page=KNOWN_WIFI;render();return;}if(page==SETUP_WIFI || page==MAKERVAULT_SETUP){if(lanPortalActive)stopPortal();page=(page==SETUP_WIFI)?WIFI_MENU:MV_MENU;render();return;}if(page==KNOWN_WIFI||page==WIFI_STATUS){page=WIFI_MENU;render();return;}
  if(page==MV_PAIR){if(mvPairState==1||mvPairState==2)mvCancelPairing();page=MV_MENU;render();return;}
@@ -802,6 +857,9 @@ void processInputs(){
  if(backKey.pressed())back();
  if(confirmKey.pressed()){
   Serial.println("[BUTTON] CONFIRM");
+#if MAKERVAULT_NDEF_WRITER_ENABLED
+  if(page==NDEF_WRITE){if(ndefState==2)ndefConfirm();else if(ndefState==6||ndefState==7){ndefReset(false);page=MAKERTAGS_MENU;}render();return;}
+#endif
   if(page==REGISTRATION && (regState==2||regState==6)){regSubmit(regUid,regKind);registrationScreen();return;}
   if(page==HOME)choose();else if(page==CONTROLS)control("Confirm");
   else if(page==SCAN){scanResultVisible=false;scanLookupQueued=false;scanLookupState=0;scanPage();}
@@ -855,15 +913,115 @@ void readerInit(){
 }
 
 void pollTag(){
- if((page!=SCAN && !(page==REGISTRATION && regState==1) && !(page==LOOKUP_REQUEST && remoteLookupState==1))||(page==SCAN && scanResultVisible)||(uint32_t)(millis()-lastPoll)<100)return;
+#if MAKERVAULT_NDEF_WRITER_ENABLED
+ const bool ndefScanning=(page==NDEF_WRITE && (ndefState==1 || ndefState==4 || ndefState==8));
+ if(!ndefScanning && ndefState!=0 && page==NDEF_WRITE)return;
+#else
+ const bool ndefScanning=false;
+#endif
+ if((!ndefScanning && page!=SCAN && !(page==REGISTRATION && regState==1) && !(page==LOOKUP_REQUEST && remoteLookupState==1))||(page==SCAN && scanResultVisible)||(uint32_t)(millis()-lastPoll)<100)return;
  lastPoll=millis();digitalWrite(TFT_CS,HIGH);
- if(!rfid.PICC_IsNewCardPresent()||!rfid.PICC_ReadCardSerial())return;
+ bool cardReady=false;
+#if MAKERVAULT_NDEF_WRITER_ENABLED
+ if(ndefScanning && ndefAutoFlow){
+   // A tag already scanned during registration may be in HALT, not IDLE.
+   // REQA (IsNewCardPresent) only sees IDLE tags. WUPA is required to
+   // reselect the SAME still-present tag without a second physical tap.
+   byte atqa[2]={};byte atqaSize=sizeof(atqa);
+   cardReady=(rfid.PICC_WakeupA(atqa,&atqaSize)==MFRC522::STATUS_OK);
+ } else
+#endif
+ cardReady=rfid.PICC_IsNewCardPresent();
+ if(!cardReady || !rfid.PICC_ReadCardSerial())return;
  String uid="";
  for(byte i=0;i<rfid.uid.size;i++){
   if(rfid.uid.uidByte[i]<16)uid+='0';uid+=String(rfid.uid.uidByte[i],HEX);
  }
  uid.toUpperCase();recentUid=uid;
  recentType=String(rfid.PICC_GetTypeName(rfid.PICC_GetType(rfid.uid.sak)));
+#if MAKERVAULT_NDEF_WRITER_ENABLED
+ if(ndefScanning){
+  if(ndefState==8){
+   MakerVaultRc522PageIO io(rfid);
+   uint8_t fresh[MakerVaultNtag215::kUserBytes]={};
+   if(!MakerVaultNtag215::readNdefArea(io,fresh) ||
+      !MakerVaultNtag215::verifyReadback(rfid.uid.uidByte,rfid.uid.size,ndefUid.c_str(),ndefUrl.c_str(),fresh,sizeof(fresh))){
+     ndefError="Fresh read-back failed";ndefState=7;
+   }else ndefState=5;
+  }else if(ndefState==1){
+   MakerVaultRc522PageIO io(rfid);
+   MakerVaultNtag215::MemoryInfo info={false,false,0};
+   uint8_t area[MakerVaultNtag215::kUserBytes]={};
+   if(rfid.uid.size!=7 || !MakerVaultNtag215::matchesUid(
+        rfid.uid.uidByte,rfid.uid.size,ndefUid.c_str())){
+    // No page access or write has occurred. Keep the expected UID bound to
+    // this request and let the operator return the original physical tag.
+    ndefError="Wrong tag - return original";
+    Serial.println("[NDEF] Wrong UID during read-only inspection; awaiting original tag");
+   }else if(!MakerVaultNtag215::inspectMemory(io,rfid.uid.uidByte,info)){
+    ndefError="Return same tag to read";
+   }else if(!info.supported){
+    ndefError="Not NTAG215 (CC)";ndefState=7;
+   }else if(!info.writable){
+    ndefError="Locked / protected tag";ndefState=7;
+   }else if(!MakerVaultNtag215::readNdefArea(io,area)){
+    ndefError="Return same tag to read";
+   }else{
+    // Pre-write inspection is read-only. A transient RF loss can be retried
+    // after reselecting the same physical UID; no NFC pages were changed.
+    ndefError="";
+    const auto decision=MakerVaultNtag215::assess(
+      info,rfid.uid.uidByte,rfid.uid.size,ndefUid.c_str(),
+      ndefTagId.c_str(),ndefUrl.c_str(),area,sizeof(area),true,true);
+    if(decision==MakerVaultNtag215::WRITE_READY){
+      char existingUrl[MakerVaultNdef::kMaxUriLength+1]={};
+      ndefExistingUrl=MakerVaultNdef::decodeUri(area,sizeof(area),existingUrl,sizeof(existingUrl))
+        ? String(existingUrl) : String("");
+      if(ndefAutoFlow && ndefExistingUrl==ndefUrl &&
+         MakerVaultNtag215::verifyReadback(rfid.uid.uidByte,rfid.uid.size,
+                                            ndefUid.c_str(),ndefUrl.c_str(),area,sizeof(area))){
+        // Already programmed with this permanent URL: no unnecessary write.
+        ndefState=5;
+      } else if(ndefAutoFlow) {
+        // One physical Confirm covered assignment and NFC programming.
+        // The server still reauthorizes the exact UID + URL before a write.
+        ndefState=2;
+        ndefConfirm();
+      } else ndefState=2;
+    }
+    else{
+      ndefError=decision==MakerVaultNtag215::WRITE_REJECT_FOREIGN_CONTENT
+        ?"Existing NDEF needs override"
+        :decision==MakerVaultNtag215::WRITE_REJECT_URL
+        ?"Invalid MakerVault URL"
+        :decision==MakerVaultNtag215::WRITE_REJECT_UID
+        ?"Wrong tag UID":"Tag safety check failed";
+      ndefState=7;
+    }
+   }
+   if(ndefState==7)Serial.printf("[NDEF] Pre-write inspection: %s\\n",ndefError.c_str());
+  }else if(ndefState==4){
+   MakerVaultRc522PageIO io(rfid);
+   if(!mvPairVerified || !mvCanWriteTags ||
+      (uint32_t)(millis()-ndefAuthorizedAt)>15000UL){ndefError="UID or authorization expired";ndefState=7;}
+   else if(rfid.uid.size!=7 || !MakerVaultNtag215::matchesUid(
+        rfid.uid.uidByte,rfid.uid.size,ndefUid.c_str())){
+    // Do not attempt *any* page write to a substituted tag. The original
+    // UID can return within the existing short authorization window.
+    ndefError="Wrong tag - return original";
+    Serial.println("[NDEF] Wrong UID before write; awaiting original tag");
+   }else {
+    ndefError="";
+    const auto result=MakerVaultNtag215::writeNdef(io,rfid.uid.uidByte,ndefUid.c_str(),ndefTagId.c_str(),ndefUrl.c_str(),true,true);
+    if(result!=MakerVaultNtag215::RESULT_VERIFIED){ndefError="Write/read-back failed";ndefState=7;}
+    else ndefState=8;
+   }
+  }
+  rfid.PICC_HaltA();rfid.PCD_StopCrypto1();render();
+  if(ndefState==5)ndefSubmitVerified();
+  return;
+ }
+#endif
  rfid.PICC_HaltA();rfid.PCD_StopCrypto1();
  if(page==LOOKUP_REQUEST){
   auto family=rfid.PICC_GetType(rfid.uid.sak);
@@ -880,7 +1038,7 @@ void pollTag(){
   }
   regUid=uid;
   regKind=(family==MFRC522::PICC_TYPE_MIFARE_UL?"nfc":"rfid");
-  regState=2;registrationScreen();return;
+  regState=7;registrationScreen();regScheduleProbe();return;
  }
  hasScanned=true;scanResultVisible=true;
  scanLookupBegin(recentUid,rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_UL?"nfc":"rfid");
@@ -906,16 +1064,50 @@ void loop(){
  provisioningLoop();
  mvLoop();mvHeartbeatLoop();
  regScheduleCancel();
+ regScheduleProbe();
  scanLookupDispatch();
  regSchedulePoll();
  regCheckStatus();
+ regDispatchSubmit();
+ regSubmissionWatchdog();
  if(regServerClosed && page==REGISTRATION){regReset();page=MAKERTAGS_MENU;render();}
  remoteLookupPoll();
+#if MAKERVAULT_NDEF_WRITER_ENABLED
+ // A previous verified or failed NFC request must not block the next
+ // confirmed registration. Do not discard an active, unverified operation.
+ if(regState==4 && regAutoWriteId.length()==36 &&
+    (ndefState==6 || ndefState==7)) {
+   Serial.printf("[NDEF] Clearing terminal NFC state %u before registration handoff\n",
+                 (unsigned)ndefState);
+   ndefReset(false);
+ }
+ if(regState==4 && regAutoWriteId.length()==36 && ndefState==0) {
+   Serial.printf("[NDEF] Registration handoff granted for %s\n",regAutoTagId.c_str());
+   // Registration was physically confirmed; continue the same operation.
+   // Exact UID and URL are bound to the freshly created server write grant.
+   ndefId=regAutoWriteId;ndefUid=regUid;ndefTagId=regAutoTagId;ndefUrl=regAutoUrl;
+   ndefError="";ndefExistingUrl="";ndefStarted=millis();ndefAutoFlow=true;ndefState=1;
+   regReset();page=NDEF_WRITE;lastPoll=0;render();
+ } else if(regState==4 && regAutoWriteId.length()==36 && ndefState!=0) {
+   // Never claim success when another unverified NFC operation is active.
+   // Expose the issue rather than leaving the registration screen stuck.
+   Serial.printf("[NDEF] Registration handoff blocked by active state %u\n",
+                 (unsigned)ndefState);
+   regError="NFC busy; finish previous write";
+   regState=5;
+ }
+ ndefSchedulePoll();
+ ndefScheduleWatch();
+ ndefScheduleCancel();
+ ndefExpireLocal();
+ if(ndefState==1 && page!=NDEF_WRITE && regState==0 && remoteLookupState==0){page=NDEF_WRITE;lastPoll=0;render();}
+ if(page==NDEF_WRITE){static uint8_t shown=255;if(shown!=ndefState){shown=ndefState;ndefWriterScreen();}}
+#endif
  if(remoteLookupState==1 && page!=LOOKUP_REQUEST && regState==0){page=LOOKUP_REQUEST;lastPoll=0;render();}
  if(page==LOOKUP_REQUEST){static uint8_t lastRemoteState=255;if(lastRemoteState!=remoteLookupState){lastRemoteState=remoteLookupState;remoteLookupScreen();}}
  if(regState==1 && page!=REGISTRATION){scanResultVisible=false;lastPoll=0;page=REGISTRATION;render();}
  if(page==REGISTRATION && regState==1){static uint32_t lastNamePage=UINT32_MAX;uint32_t currentNamePage=millis()/4000UL;if(currentNamePage!=lastNamePage){lastNamePage=currentNamePage;registrationScreen();}}
- if(page==REGISTRATION && (regState==4||regState==5||regState==6)){static uint8_t lastDrawn=0;static uint32_t lastReassignPage=UINT32_MAX;uint32_t reassignPage=millis()/4000UL;if(lastDrawn!=regState || (regState==6 && lastReassignPage!=reassignPage)){lastDrawn=regState;lastReassignPage=reassignPage;registrationScreen();}}
+ if(page==REGISTRATION && (regState==2||regState==4||regState==5||regState==6||regState==7)){static uint8_t lastDrawn=0;static uint32_t lastReassignPage=UINT32_MAX;uint32_t reassignPage=millis()/4000UL;if(lastDrawn!=regState || (regState==6 && lastReassignPage!=reassignPage)){lastDrawn=regState;lastReassignPage=reassignPage;registrationScreen();}}
  processInputs();
  if(!readerInitDone && (uint32_t)(millis()-lastInputAt)>1100)readerInit();
  if(readerInitDone)pollTag();

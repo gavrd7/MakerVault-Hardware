@@ -188,7 +188,7 @@ void wifiSetManualOffline(bool disabled){
   WiFi.disconnect(false,false);
   Serial.println("[WIFI] Manually disconnected; remembered networks retained");
  }else{
-  WiFi.mode(WIFI_STA);WiFi.setAutoReconnect(true);
+  WiFi.mode(WIFI_STA);WiFi.setSleep(false);WiFi.setAutoReconnect(true);
   lastReconnectTry=millis()-12001;
   if(knownCount)WiFi.begin(knownSSID[knownCount-1].c_str(),knownPass[knownCount-1].c_str());
   Serial.println("[WIFI] Automatic connection enabled");

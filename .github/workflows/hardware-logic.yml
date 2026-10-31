@@ -1,0 +1,34 @@
+name: Hardware logic tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-cpp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build standalone NDEF URI tests
+        run: |
+          c++ -std=c++11 -Wall -Wextra -Werror \
+            tests/ntag_ndef_uri_test.cpp -o /tmp/makervault-ndef-test
+      - name: Build NTAG215 write safety policy tests
+        run: c++ -std=c++11 -Wall -Wextra -Werror tests/ntag215_write_policy_test.cpp -o /tmp/makervault-ndef-policy-test
+      - name: Run NTAG215 write safety policy tests
+        run: /tmp/makervault-ndef-policy-test
+      - name: Build NTAG215 mock page transactions
+        run: c++ -std=c++11 -Wall -Wextra -Werror tests/ntag215_page_transaction_test.cpp -o /tmp/makervault-ndef-page-test
+      - name: Run NTAG215 mock page transactions
+        run: /tmp/makervault-ndef-page-test
+      - name: Build RC522 page adapter mock
+        run: c++ -std=c++11 -Wall -Wextra -Werror tests/ntag215_rc522_page_io_test.cpp -o /tmp/makervault-ndef-rc522-test
+      - name: Run RC522 page adapter mock
+        run: /tmp/makervault-ndef-rc522-test
+      - name: Run standalone NDEF URI tests
+        run: /tmp/makervault-ndef-test

@@ -1,5 +1,6 @@
 #pragma once
 #include "firmware_version.h"
+#include "ntag215_feature_gate.h"
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <Preferences.h>
@@ -391,7 +392,9 @@ void mvLoop(){
  if(WiFi.status()!=WL_CONNECTED){if(!mvTask){mvCheckState=1;mvClearScopes();}return;}
  if(mvTask)return;
  // Periodic, background verification; don't block the encoder or reader.
- if(mvLastCheck==0 || (uint32_t)(millis()-mvLastCheck)>60000)mvRequestCheck();
+ // Failed HTTPS checks retry automatically without button interaction.
+  const uint32_t retryMs=(mvCheckState==3)?60000UL:15000UL;
+  if(mvLastCheck==0 || (uint32_t)(millis()-mvLastCheck)>retryMs)mvRequestCheck();
 }
 
 const char* mvStatusName(){
@@ -401,7 +404,7 @@ const char* mvStatusName(){
 // Heartbeats are issued off-thread, only for wizard-paired devices.
 void mvHeartbeatTask(void *){
  String reply;int code=mvHttps("/api/device/v1/heartbeat/","POST",
-  String("{\"firmware_version\":\"")+MAKERVAULT_FIRMWARE_VERSION+"\",\"capabilities\":[\"rfid\",\"nfc\",\"wifi\"],\"status\":{\"wifi\":\"connected\",\"api\":\"ok\",\"hardware\":\"ok\"}}",reply,true);
+  String("{\"firmware_version\":\"")+MAKERVAULT_FIRMWARE_VERSION+"\",\"capabilities\":[\"rfid\",\"nfc\",\"wifi\""+String(MAKERVAULT_NDEF_WRITER_ENABLED?",\"ntag215_ndef_write\"":"")+"],\"status\":{\"wifi\":\"connected\",\"api\":\"ok\",\"hardware\":\"ok\"}}",reply,true);
  // Always record a status for diagnosis; the server updates last_seen only on 200.
  mvLastHttpCode=code;
  Serial.printf("[MAKERVAULT] heartbeat HTTP response: %d\n",code);

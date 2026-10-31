@@ -1,0 +1,61 @@
+name: ESP32-S3 sketch compile
+
+on:
+  pull_request:
+    paths:
+      - 'firmware/rfid-terminal/MakerVault_Terminal_Firmware/**'
+      - '.github/workflows/esp32-sketch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  arduino-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install ESP32 board core
+        run: |
+          arduino-cli config init
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.12 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+      - name: Install firmware libraries
+        run: |
+          arduino-cli lib install "Adafruit GFX Library"
+          arduino-cli lib install "Adafruit ST7735 and ST7789 Library"
+          arduino-cli lib install "Adafruit NeoPixel"
+          arduino-cli lib install "MFRC522"
+          arduino-cli lib install "ESP32CertBundle"
+      - name: Compile standard v0.7 firmware (NFC writing enabled by default)
+        run: |
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:PartitionScheme=huge_app \
+            --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1" \
+            firmware/rfid-terminal/MakerVault_Terminal_Firmware
+      - name: Compile v0.7 NFC writer release binary
+        run: |
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:PartitionScheme=huge_app \
+            --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1" \
+            --output-dir ./dist/release \
+            firmware/rfid-terminal/MakerVault_Terminal_Firmware
+
+      - name: Upload v0.7 writer-enabled firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: makervault-terminal-v0.7-esp32s3
+          path: dist/release/*.bin
+          if-no-files-found: error
+
+      - name: Package v0.7 Arduino source (writer enabled)
+        run: |
+          mkdir -p dist/source
+          cp -a firmware/rfid-terminal/MakerVault_Terminal_Firmware dist/source/
+          cd dist/source
+          zip -qr ../MakerVault_Terminal_v0.7_Arduino.zip MakerVault_Terminal_Firmware
+      - name: Upload v0.7 Arduino sketch ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: makervault-terminal-v0.7-arduino-sketch
+          path: dist/MakerVault_Terminal_v0.7_Arduino.zip
+          if-no-files-found: error
