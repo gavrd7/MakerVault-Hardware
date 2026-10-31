@@ -133,3 +133,43 @@ void rbDispatch(){
   mvTask=nullptr;rbError="Memory unavailable";rbStatus=4;
  }
 }
+
+// Begin the EXISTING server registration protocol from the selected record.
+// That protocol performs UID conflict review, reassignment confirmation,
+// device-bound NDEF grants and read-back; no second writer is introduced.
+volatile uint8_t rbBeginStatus=0; // 0 idle, 1 queued, 2 sending, 3 created, 4 failed
+bool rbBeginCancel=false;
+String rbBeginId="",rbBeginError="";
+void rbBeginTask(void*) {
+ const String body=String("{\"target_type\":\"")+RB_TYPES[rbCategory]
+                 +"\",\"target_id\":\""+rbChosenId+"\"}";
+ String response;
+ int code=mvHttps("/api/device/v1/tag-registration/begin/","POST",body,response,true);
+ if(code==201) {
+  rbBeginId=mvField(response,"id");
+  if(rbBeginId.length()==36)rbBeginStatus=3;
+  else {rbBeginError="Invalid server reply";rbBeginStatus=4;}
+ }else{
+  rbBeginError=code==403?"Permission denied":code==409?"Terminal busy":
+    code==400?"Invalid selection":code==401?"Pair terminal":"Server unavailable";
+  rbBeginStatus=4;
+ }
+ mvTask=nullptr;vTaskDelete(nullptr);
+}
+void rbBeginDispatch(){
+ if(rbBeginStatus!=1 || mvTask)return;
+ if(!mvPairVerified || !mvCanWriteTags || !mvCanSearchInventory ||
+    !mvEndpointApproved() || WiFi.status()!=WL_CONNECTED ||
+    regState!=0) {
+  rbBeginError="Connect / grant access";rbBeginStatus=4;return;
+ }
+ rbBeginStatus=2;
+ if(xTaskCreatePinnedToCore(rbBeginTask,"mv_reg_begin",12288,nullptr,1,&mvTask,0)!=pdPASS){
+  mvTask=nullptr;rbBeginError="Memory unavailable";rbBeginStatus=4;
+ }
+}
+void rbBeginSelected(){
+ if(rbChosenId.length()!=36 || rbBeginStatus==1 || rbBeginStatus==2)return;
+ rbBeginId="";rbBeginError="";rbBeginCancel=false;rbBeginStatus=1;
+ rbBeginDispatch();
+}
