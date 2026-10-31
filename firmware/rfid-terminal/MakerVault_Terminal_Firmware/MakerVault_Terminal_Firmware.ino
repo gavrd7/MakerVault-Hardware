@@ -289,6 +289,21 @@ void simple(const char* title,const char* line1,const char* line2=""){
 // Draw a prominent record identity, then the MakerVault ID; UID is secondary.
 // Declared here because the scan screen reuses the record name wrapping helper.
 int regWrapLines(const String &source, String *lines);
+// Keep tag identity fields within the 128px viewport. Two short rows
+// accommodate long MFRC522 family names without clipping or truncating UID.
+void scanTypeWrapped(int y, uint16_t color){
+ String value=recentType;
+ const int maxChars=19; // 128px - 14px margins, 6px per character
+ if(value.length()<=maxChars){textAt(7,y,value.c_str(),color);return;}
+ int split=value.lastIndexOf(' ',maxChars);
+ if(split<6)split=maxChars;
+ String first=value.substring(0,split);
+ String second=value.substring(split);
+ second.trim();
+ textAt(7,y,first.c_str(),color);
+ if(second.length()>maxChars)second=second.substring(0,maxChars-1)+"~";
+ textAt(7,y+12,second.c_str(),color);
+}
 void scanPage(){
  display->fillScreen(BG);
  if(!scanResultVisible){
@@ -313,7 +328,7 @@ void scanPage(){
   textAt(7,79,scanLookupCode.c_str(),SKY);
  }else if(scanLookupState==3 && !scanMakerTagsMode){
   centeredAt(45,"RFID detected",GREEN);
-  textAt(7,64,recentType.substring(0,19).c_str(),WHITE);
+  scanTypeWrapped(61,WHITE);
   centeredAt(84,"Not a MakerTag",SILVER);
  }else if(scanLookupState==3){
   // Material-style unknown identity: filled amber status disc with a
@@ -328,13 +343,13 @@ void scanPage(){
   centeredAt(62,"Checking tag...",SKY);
  }else if(scanLookupState==4){
   centeredAt(48,"Lookup unavailable",AMBER);
-  if(!scanMakerTagsMode)textAt(7,68,recentType.substring(0,19).c_str(),SILVER);
+  if(!scanMakerTagsMode)scanTypeWrapped(63,SILVER);
  }else{
-  centeredAt(52,"TAG READ",GREEN);
-  textAt(7,74,recentType.substring(0,19).c_str(),SILVER);
+  centeredAt(37,"TAG READ",GREEN);
+  scanTypeWrapped(60,SILVER);
  }
  // UID remains visible, small and lower priority.
- textAt(7,100,recentUid.substring(0,19).c_str(),SILVER);
+ textAt(7,97,recentUid.substring(0,19).c_str(),SILVER);
  bottom("Confirm: rescan");
 }
 void remoteLookupScreen(){
