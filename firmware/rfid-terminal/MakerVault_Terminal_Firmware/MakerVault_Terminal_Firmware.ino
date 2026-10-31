@@ -774,8 +774,12 @@ void rbPreviewScreen(){
  centeredAt(43,label.c_str(),WHITE);
  String code=rbChosenCode;if(code.length()>20)code=code.substring(0,19)+"~";
  centeredAt(60,code.c_str(),SKY);
- centeredAt(85,"Review only",AMBER);
- bottom("Back: records");
+ if(rbBeginStatus==1||rbBeginStatus==2)
+  centeredAt(85,"Connecting...",SKY);
+ else if(rbBeginStatus==4)
+  centeredAt(85,rbBeginError.c_str(),AMBER);
+ else centeredAt(85,"Assign to this?",SKY);
+ bottom(rbBeginStatus==2?"Back: cancel":"OK: start Back: list");
 }
 
 void render(){
@@ -861,6 +865,7 @@ void choose(){
   String letter=String(RB_LETTERS[rbLetterIndex]);
   rbQueue(0,letter);page=RB_LIST;rbDispatch();render();return;
  }
+ if(page==RB_PREVIEW){rbBeginSelected();rbPreviewScreen();return;}
  if(page==RB_LIST){
   if(rbStatus==3 && rbCount){
    rbChosenId=rbRows[rbRow].id;rbChosenName=rbRows[rbRow].label;
@@ -917,7 +922,11 @@ void choose(){
 }
 void back(){
  if(page==RB_LETTER){page=RB_LIST;render();return;}
- if(page==RB_PREVIEW){page=RB_LIST;render();return;}
+ if(page==RB_PREVIEW){
+  if(rbBeginStatus==1){rbBeginStatus=0;rbBeginCancel=false;}
+  else if(rbBeginStatus==2){rbBeginCancel=true;rbBeginError="Cancelling...";rbPreviewScreen();return;}
+  rbBeginStatus=0;page=RB_LIST;render();return;
+ }
  if(page==RB_LIST){rbEpoch++;rbStatus=0;page=RB_CATEGORIES;render();return;}
  if(page==RB_CATEGORIES){page=MAKERTAGS_MENU;subSelected=0;render();return;}
 
@@ -1172,7 +1181,21 @@ void setup(){
  Serial.println(String("[SYSTEM] READY v")+MAKERVAULT_FIRMWARE_VERSION);
 }
 void loop(){
- rbDispatch();
+ rbDispatch();rbBeginDispatch();
+ if(rbBeginStatus==3){
+  rbBeginStatus=0;
+  regId=rbBeginId;regTarget=rbChosenName;regRecordCode=rbChosenCode;
+  regLastCheck=millis();regState=1;regError="";
+  if(rbBeginCancel){
+   regCancel();page=RB_LIST;render();
+  }else{
+   page=REGISTRATION;scanResultVisible=false;lastPoll=0;render();
+  }
+ }else if(rbBeginStatus==4 && page==RB_PREVIEW){
+  static String lastBeginError="";
+  if(lastBeginError!=rbBeginError){lastBeginError=rbBeginError;rbPreviewScreen();}
+ }
+
  if(page==RB_LIST){static uint8_t rbLast=255;if(rbLast!=rbStatus){rbLast=rbStatus;rbListScreen();}}
  provisioningLoop();
  mvLoop();mvHeartbeatLoop();
