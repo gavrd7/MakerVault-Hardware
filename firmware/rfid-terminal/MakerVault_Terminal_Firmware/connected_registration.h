@@ -38,9 +38,17 @@ void regCompleteTask(void *) {
     regAutoTagId=mvField(response,"ndef_tag_id");
     if(regAutoWriteId.length()!=36 || regAutoTagId.length()!=11 ||
        regAutoUrl.length()<20 || regAutoUrl.length()>240){
+      // Registration can succeed without an NFC grant (e.g. another pending
+      // request). Never leave the device claiming success while the browser
+      // waits forever for a physical write that cannot be authorised.
+      Serial.printf("[REGISTRATION] Assigned, but NFC grant missing/invalid (id=%u tag=%u url=%u)\\n",
+        (unsigned)regAutoWriteId.length(),(unsigned)regAutoTagId.length(),(unsigned)regAutoUrl.length());
       regAutoWriteId="";regAutoUrl="";regAutoTagId="";
+      regError="Assigned; NFC unavailable";
+      regState=5;
+    }else{
+      regState=4;regError="";
     }
-    regState=4;regError="";
   }
   else {
     if(status==409 && (response.indexOf("\"reassign_required\": true")>=0 ||
