@@ -37,14 +37,14 @@ jobs:
         run: |
           arduino-cli compile --fqbn esp32:esp32:esp32s3:PartitionScheme=huge_app \
             --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1" \
-            --output-dir ./dist/experimental \
+            --output-dir ./dist/release \
             firmware/rfid-terminal/MakerVault_Terminal_Firmware
 
       - name: Upload v0.7 writer-enabled firmware
         uses: actions/upload-artifact@v4
         with:
           name: makervault-terminal-v0.7-esp32s3
-          path: dist/experimental/*.bin
+          path: dist/release/*.bin
           if-no-files-found: error
 
       - name: Package v0.7 Arduino source (writer enabled)
@@ -57,5 +57,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: makervault-terminal-v0.7-arduino-sketch
-          path: dist/MakerVault_Terminal_NDEF_Experimental_Arduino.zip
+          path: dist/MakerVault_Terminal_v0.7_Arduino.zip
           if-no-files-found: error
