@@ -34,7 +34,7 @@ void ndefPendingTask(void *) {
 }
 
 void ndefSchedulePoll() {
-  if(!MAKERVAULT_NDEF_WRITER_EXPERIMENTAL || ndefState!=0 || regState!=0 ||
+  if(!MAKERVAULT_NDEF_WRITER_ENABLED || ndefState!=0 || regState!=0 ||
      remoteLookupState!=0 || mvTask || !mvPairVerified || !mvCanWriteTags ||
      !mvEndpointApproved() || mvCheckState!=3 || WiFi.status()!=WL_CONNECTED)
     return;
