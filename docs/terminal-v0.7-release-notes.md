@@ -13,11 +13,11 @@ Compatible application: **MakerVault v1.4.5**. These notes describe the release 
 ## Preserved
 - Existing pairing, HTTPS certificate validation, device heartbeat, UID scanning and MakerVault record lookup.
 - MIFARE Classic / Creality CFS UID-only lookup without writing their existing material sectors.
-- Feature-gated experimental source remains available for development; release binaries must explicitly enable and validate the NTAG215 writer.
+- The standard v0.7 source and release binaries include the validated NTAG215 writer by default; a custom read-only build may disable it explicitly.
 
 ## Setup / upgrade
 1. Update MakerVault to v1.4.5, configure trusted HTTPS (including any non-default port), and verify the terminal is paired.
-2. Flash the designated verified v0.7 build; ensure the `ntag215_ndef_write` capability and `tags:write` permission are enabled for intended devices.
+2. Flash the designated verified v0.7 build; confirm the terminal advertises `ntag215_ndef_write` and grant its `tags:write` permission only to intended devices.
 3. Follow [physical acceptance](docs/ntag215-esp32s3-acceptance.md) and [writer safety](docs/ntag215-ndef-writer-safety.md) for supported tags and failure behaviour.
 4. Validate an ordinary read, a disposable NTAG215 write and a phone tap before relying on newly written tags.
 
