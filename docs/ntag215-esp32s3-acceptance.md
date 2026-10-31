@@ -41,3 +41,17 @@ Do not disable lock/configuration/UID checks or substitute a saved UID for a fre
 ## Acceptance
 
 No ordinary scan writes memory. A combined assignment may commit the database before NFC programming; the UI must explicitly distinguish that partial result from fully verified success. A valid finished state requires the correct UID, exact permanent URL, fresh memory read-back, and acknowledged server completion. Existing public releases remain unchanged until physical testing and review pass.
+
+## Staging physical acceptance record — 31 October 2026
+
+This is a **staging acceptance snapshot**, not approval to publish firmware.
+The MakerVault app PR is [#154](https://github.com/gavrd7/MakerVault/pull/154), and the matching hardware PR is [#9](https://github.com/gavrd7/MakerVault-Hardware/pull/9).
+
+- PASS: normal tag scan and lookup, assignment + readback, reassignment with stable URL, wrong UID and tag substitution handling, pre-write removal/retry, cancellation after flashing the known-updated experimental firmware (7A), no-write local/server expiry (7B), and post-expiry refusal to reuse the expired request (7C).
+- PASS: generic MIFARE Classic 1K UID-based association and subsequent server lookup without demonstrated physical tag-memory modification. Distinguish **RFID UID registration** from **verified NTAG215 NFC URL programming** in messaging (7D).
+- PASS: terminal layout/usability checks 8A.1–8A.4 on the tested build; subsequent display-polish commit `1d75c60` (centered tag type, repositioned unknown-tag message) **requires a fresh physical check** after flashing. The requested NTAG215-specific family label remains pending safe model identification.
+- PASS: MakerTags web filters/responsive layout and NFC/RFID identity distinction (8B). Terminology changes in app PR #154 require staging visual verification after rebuild. `Reader technology: Auto / unspecified` is optional metadata and must not be confused with tag family recognition.
+- PASS: app HTTPS regression with two threaded native HTTPS workers, four threads each: 30/30 localhost TLS/HTTP responses, responsive terminal and automatically updating heartbeat; iPhone NTAG215 phone URL opened via trusted HTTPS, resolved correct inventory record, and terminal independently resolved same record (9A).
+- **NOT YET VERIFIED:** locked/password-protected genuine NTAG215 physical write rejection, final display-polish firmware flashed and inspected, longer-term service resilience under stalled clients. Unsupported Classic 1K registration alone does not cover protected NTAG215 negative testing.
+
+Keep the experimental feature gate and avoid production release until these remaining risks are explicitly accepted or tested. Review the source PR conversations for individual test evidence and incident details.
