@@ -755,6 +755,7 @@ void rbListScreen(){
   if(label.length()>19)label=label.substring(0,18)+"~";
   textAt(11,y+3,label.c_str(),idx==rbRow?WHITE:SILVER);
   String code=rbRows[idx].code;
+  if(code.isEmpty())code="Ref: "+rbRows[idx].id.substring(0,8);
   if(code.length()>23)code=code.substring(0,22)+"~";
   textAt(11,y+14,code.c_str(),MUTED);
  }
@@ -766,13 +767,16 @@ void rbLetterScreen(){
  char character[2]={RB_LETTERS[rbLetterIndex],0};
  display->setTextSize(5);centeredAt(43,character,WHITE);display->setTextSize(1);
  centeredAt(90,"Rotate to select",SILVER);
- bottom("OK: jump Back: list");
+ centeredAt(102,"Confirm to jump",SILVER);
+ bottom("Back: cancel");
 }
 void rbPreviewScreen(){
  display->fillScreen(BG);header("Selected record");
  String label=rbChosenName;if(label.length()>19)label=label.substring(0,18)+"~";
  centeredAt(43,label.c_str(),WHITE);
- String code=rbChosenCode;if(code.length()>20)code=code.substring(0,19)+"~";
+ String code=rbChosenCode;
+ if(code.isEmpty())code="Ref: "+rbChosenId.substring(0,8);
+ if(code.length()>20)code=code.substring(0,19)+"~";
  centeredAt(60,code.c_str(),SKY);
  if(rbBeginStatus==1||rbBeginStatus==2)
   centeredAt(85,"Connecting...",SKY);
@@ -1191,9 +1195,11 @@ void loop(){
   }else{
    page=REGISTRATION;scanResultVisible=false;lastPoll=0;render();
   }
- }else if(rbBeginStatus==4 && page==RB_PREVIEW){
-  static String lastBeginError="";
-  if(lastBeginError!=rbBeginError){lastBeginError=rbBeginError;rbPreviewScreen();}
+ }else if(page==RB_PREVIEW){
+  static uint8_t lastBeginState=255;
+  if(lastBeginState!=rbBeginStatus){
+   lastBeginState=rbBeginStatus;rbPreviewScreen();
+  }
  }
 
  if(page==RB_LIST){static uint8_t rbLast=255;if(rbLast!=rbStatus){rbLast=rbStatus;rbListScreen();}}
