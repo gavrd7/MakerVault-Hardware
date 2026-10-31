@@ -51,7 +51,7 @@ void ndefWatchTask(void *) {
   const String requestedId=ndefId;
   String reply;
   const int status=mvHttps("/api/device/v1/ndef-write/"+requestedId+"/status/","GET","",reply,true);
-  if(ndefId==requestedId && (ndefState==1 || ndefState==2 || ndefState==4)) {
+  if(ndefId==requestedId && (ndefState==1 || ndefState==2)) {
     if(status==200) {
       const String current=mvField(reply,"state");
       if(current!="pending" || mvField(reply,"uid")!=ndefUid ||
@@ -61,18 +61,17 @@ void ndefWatchTask(void *) {
         Serial.println("[NDEF] Server invalidated pending NFC operation");
       }
     } else {
-      // Loss of contact is not an authorization to write; reject only
-      // the short-lived pre-write state, not read-only waiting.
-      if(ndefState==4){ndefError="Cannot confirm NFC authorization";ndefState=7;}
+      // A temporary HTTPS failure does not authorize a write. Existing
+      // status revalidation remains mandatory before physical programming.
     }
   }
   mvTask=nullptr;vTaskDelete(nullptr);
 }
 void ndefScheduleWatch(){
-  if((ndefState!=1 && ndefState!=2 && ndefState!=4) ||
+  if((ndefState!=1 && ndefState!=2) ||
      mvTask || !mvPairVerified || !mvEndpointApproved() ||
      WiFi.status()!=WL_CONNECTED)return;
-  if((uint32_t)(millis()-ndefLastStatusPoll)<2000UL)return;
+  if((uint32_t)(millis()-ndefLastStatusPoll)<5000UL)return;
   ndefLastStatusPoll=millis();
   if(xTaskCreatePinnedToCore(ndefWatchTask,"mv_ndef_watch",12288,nullptr,1,&mvTask,0)!=pdPASS)
     mvTask=nullptr;
