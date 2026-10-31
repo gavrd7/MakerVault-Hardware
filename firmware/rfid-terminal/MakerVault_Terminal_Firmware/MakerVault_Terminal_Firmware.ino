@@ -20,7 +20,7 @@
 #include "connected_ndef_write.h"
 #endif
 
-// MakerVault handheld UI v0.7.0 -- ESP32-S3 SuperMini, Rev C.3
+// MakerVault handheld UI v0.8 development -- ESP32-S3 SuperMini, Rev C.3
 // Shared hardware SPI, read-only RFID, all original GPIO assignments.
 constexpr uint8_t SCK_PIN=12, MOSI_PIN=11, MISO_PIN=13;
 constexpr uint8_t TFT_CS=1, TFT_DC=2, TFT_RST=43;
@@ -37,8 +37,8 @@ constexpr uint16_t BG=0x0843, CARD=0x10C6, NAVY=0x10ED,
   BLUE=0x159F, SKY=0x867F, WHITE=0xFFFF, SILVER=0xCE79,
   MUTED=0x94D2, GREEN=0x464C, AMBER=0xF5A2, LINE=0x296A;
 
-// Write actions remain feature gated until fully implemented. API scope alone
-// never authorises a placeholder to appear as a working device operation.
+// Development MakerTag creation uses the server-authorised registration/NDEF
+// lifecycle; generic RFID writing remains intentionally unavailable.
 // This feature branch enables the new MakerTag browser for staged hardware
 // testing. The released main-branch v0.7 firmware remains unchanged.
 constexpr bool MAKERTAG_CREATE_IMPLEMENTED=true, RFID_WRITE_IMPLEMENTED=false;
@@ -742,8 +742,8 @@ void ndefWriterScreen(){
  detailScroll=0;detailPaint("NTAG215 write");
 }
 #endif
-// Read-only remote record browser. Kept behind the unfinished Create MakerTag gate
-// until authenticated terminal-initiated assignment/NDEF grants are implemented.
+// Remote MakerTag target browser and minimal single-letter A-Z jump.
+// Terminal-initiated sessions hand off to the existing verified NFC writer.
 void rbCategoriesScreen(){
  display->fillScreen(BG);header("Add MakerTag");
  int top=rbCategory>2?rbCategory-2:0;
