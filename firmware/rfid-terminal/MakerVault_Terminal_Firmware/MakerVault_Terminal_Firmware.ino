@@ -940,7 +940,10 @@ void pollTag(){
    uint8_t area[MakerVaultNtag215::kUserBytes]={};
    if(rfid.uid.size!=7 || !MakerVaultNtag215::matchesUid(
         rfid.uid.uidByte,rfid.uid.size,ndefUid.c_str())){
-    ndefError="Wrong tag UID";ndefState=7;
+    // No page access or write has occurred. Keep the expected UID bound to
+    // this request and let the operator return the original physical tag.
+    ndefError="Wrong tag - return original";
+    Serial.println("[NDEF] Wrong UID during read-only inspection; awaiting original tag");
    }else if(!MakerVaultNtag215::inspectMemory(io,rfid.uid.uidByte,info)){
     ndefError="Return same tag to read";
    }else if(!info.supported){
