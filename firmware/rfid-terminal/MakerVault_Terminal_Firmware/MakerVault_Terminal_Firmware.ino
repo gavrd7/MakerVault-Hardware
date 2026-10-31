@@ -1098,6 +1098,7 @@ void loop(){
    regState=5;
  }
  ndefSchedulePoll();
+ ndefScheduleWatch();
  ndefScheduleCancel();
  ndefExpireLocal();
  if(ndefState==1 && page!=NDEF_WRITE && regState==0 && remoteLookupState==0){page=NDEF_WRITE;lastPoll=0;render();}
