@@ -52,6 +52,8 @@ String pendingDeleteSSID="";
 // Persist manual offline mode independently of remembered SSIDs.
 
 bool scanResultVisible=false, hasScanned=false, knownReader=false;
+// The physical reader is shared, but each menu has distinct result semantics.
+bool scanMakerTagsMode=true;
 uint8_t versionReg=0;
 String recentUid="", recentType="";
 uint32_t lastPoll=0,feedbackUntil=0;
@@ -290,22 +292,29 @@ int regWrapLines(const String &source, String *lines);
 void scanPage(){
  display->fillScreen(BG);
  if(!scanResultVisible){
-  header("Read tag");
+  header(scanMakerTagsMode?"Scan MakerTag":"Scan RFID Tag");
   display->fillRoundRect(9,32,110,76,9,CARD);
   display->drawRoundRect(9,32,110,76,9,BLUE);
   asset(41,37,MV_SCAN_LARGE,46,46);
   centeredAt(78,"READY TO SCAN",WHITE);
-  centeredAt(92,"Present a tag",SKY);
+  centeredAt(92,scanMakerTagsMode?"Present MakerTag":"Present RFID tag",SKY);
   bottom("Back: menu");return;
  }
- header("Tag detected");
- if(scanLookupState==2){
+ header(scanMakerTagsMode?"MakerTag scan":"RFID scan");
+ if(!scanMakerTagsMode && scanLookupState==2){
+  centeredAt(55,"MakerTag found",GREEN);
+  centeredAt(75,"Use Scan MakerTag",SKY);
+ }else if(scanLookupState==2){
   String nameLines[20];
   int count=regWrapLines(scanLookupName,nameLines);
   int maxLines=min(3,count);
   for(int i=0;i<maxLines;i++)textAt(7,36+i*13,nameLines[i].c_str(),WHITE);
   // The full identifier must fit: MV- plus eight hex chars.
   textAt(7,79,scanLookupCode.c_str(),SKY);
+ }else if(scanLookupState==3 && !scanMakerTagsMode){
+  centeredAt(45,"RFID detected",GREEN);
+  textAt(7,64,recentType.substring(0,19).c_str(),WHITE);
+  centeredAt(84,"Not a MakerTag",SILVER);
  }else if(scanLookupState==3){
   // Material-style unknown identity: filled amber status disc with a
   // high-contrast white help glyph, rather than an outlined circle.
@@ -314,11 +323,12 @@ void scanPage(){
   // Restore normal text size before centeredAt measures the label bounds.
   display->setTextSize(1);
   centeredAt(78,"Not",AMBER);
-  centeredAt(90,"registered",AMBER);
+  centeredAt(90,"MakerTag",AMBER);
  }else if(scanLookupState==1){
   centeredAt(62,"Checking tag...",SKY);
  }else if(scanLookupState==4){
-  centeredAt(57,"Lookup unavailable",AMBER);
+  centeredAt(48,"Lookup unavailable",AMBER);
+  if(!scanMakerTagsMode)textAt(7,68,recentType.substring(0,19).c_str(),SILVER);
  }else{
   centeredAt(52,"TAG READ",GREEN);
   textAt(7,74,recentType.substring(0,19).c_str(),SILVER);
@@ -760,7 +770,7 @@ void move(int dir){
 }
 void choose(){
  if(page==MAKERTAGS_MENU||page==RFID_MENU){
-  if(subSelected==0){page=SCAN;scanResultVisible=false;render();}
+  if(subSelected==0){scanMakerTagsMode=(page==MAKERTAGS_MENU);page=SCAN;scanResultVisible=false;scanLookupState=0;render();}
   else if(subSelected<categoryCount()){
    unavailableTitle="Operation unavailable";page=UNAVAILABLE;render();
   }
