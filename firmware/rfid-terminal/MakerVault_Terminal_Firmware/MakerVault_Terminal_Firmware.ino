@@ -988,9 +988,16 @@ void pollTag(){
    if(ndefState==7)Serial.printf("[NDEF] Pre-write inspection: %s\\n",ndefError.c_str());
   }else if(ndefState==4){
    MakerVaultRc522PageIO io(rfid);
-   if(rfid.uid.size!=7 || !mvPairVerified || !mvCanWriteTags ||
+   if(!mvPairVerified || !mvCanWriteTags ||
       (uint32_t)(millis()-ndefAuthorizedAt)>15000UL){ndefError="UID or authorization expired";ndefState=7;}
-   else {
+   else if(rfid.uid.size!=7 || !MakerVaultNtag215::matchesUid(
+        rfid.uid.uidByte,rfid.uid.size,ndefUid.c_str())){
+    // Do not attempt *any* page write to a substituted tag. The original
+    // UID can return within the existing short authorization window.
+    ndefError="Wrong tag - return original";
+    Serial.println("[NDEF] Wrong UID before write; awaiting original tag");
+   }else {
+    ndefError="";
     const auto result=MakerVaultNtag215::writeNdef(io,rfid.uid.uidByte,ndefUid.c_str(),ndefTagId.c_str(),ndefUrl.c_str(),true,true);
     if(result!=MakerVaultNtag215::RESULT_VERIFIED){ndefError="Write/read-back failed";ndefState=7;}
     else ndefState=8;
