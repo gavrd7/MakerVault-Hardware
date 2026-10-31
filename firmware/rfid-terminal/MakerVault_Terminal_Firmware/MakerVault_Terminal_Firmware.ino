@@ -11,6 +11,7 @@
 #include "ui_icons.h"
 #include "provisioning.h"
 #include "connected_registration.h"
+#include "terminal_record_browser.h"
 #include "scan_lookup.h"
 #include "remote_lookup.h"
 #include "ntag215_feature_gate.h"
@@ -39,7 +40,7 @@ constexpr uint16_t BG=0x0843, CARD=0x10C6, NAVY=0x10ED,
 // Write actions remain feature gated until fully implemented. API scope alone
 // never authorises a placeholder to appear as a working device operation.
 constexpr bool MAKERTAG_CREATE_IMPLEMENTED=false, RFID_WRITE_IMPLEMENTED=false;
-enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST,NDEF_WRITE};
+enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST,NDEF_WRITE,RB_CATEGORIES,RB_LIST,RB_LETTER,RB_PREVIEW};
 Page page=HOME;
 const char* choices[]={"MakerTags","RFID Tags","Connections","System info"};
 int subSelected=0, detailScroll=0, detailCount=0;
@@ -723,6 +724,60 @@ void ndefWriterScreen(){
  detailScroll=0;detailPaint("NTAG215 write");
 }
 #endif
+// Read-only remote record browser. Kept behind the unfinished Create MakerTag gate
+// until authenticated terminal-initiated assignment/NDEF grants are implemented.
+void rbCategoriesScreen(){
+ display->fillScreen(BG);header("Add MakerTag");
+ int top=rbCategory>2?rbCategory-2:0;
+ if(top>4)top=4;
+ for(int n=0;n<3;n++){
+  int idx=top+n;if(idx>=7)break;
+  int y=34+25*n;
+  display->fillRoundRect(5,y,118,23,4,idx==rbCategory?NAVY:CARD);
+  if(idx==rbCategory)display->fillRoundRect(5,y+3,3,17,1,SKY);
+  String name=RB_NAMES[idx];if(name.length()>19)name=name.substring(0,18)+"~";
+  textAt(12,y+8,name.c_str(),idx==rbCategory?WHITE:SILVER);
+ }
+ bottom("OK: open Back: exit");
+}
+void rbListScreen(){
+ display->fillScreen(BG);header(RB_NAMES[rbCategory]);
+ if(rbStatus==1||rbStatus==2){centeredAt(62,"Loading...",SILVER);bottom("Back: categories");return;}
+ if(rbStatus==4){centeredAt(56,rbError.c_str(),AMBER);bottom("Back: categories");return;}
+ if(!rbCount){centeredAt(56,"No records found",SILVER);bottom("Hold dial: A-Z");return;}
+ int top=rbRow>2?rbRow-2:0;
+ if(top>int(rbCount)-3)top=max(0,int(rbCount)-3);
+ for(int n=0;n<3;n++){
+  int idx=top+n;if(idx>=rbCount)break;
+  int y=33+n*25;
+  display->fillRoundRect(4,y,120,24,4,idx==rbRow?NAVY:CARD);
+  String label=rbRows[idx].label;
+  if(label.length()>19)label=label.substring(0,18)+"~";
+  textAt(11,y+3,label.c_str(),idx==rbRow?WHITE:SILVER);
+  String code=rbRows[idx].code;
+  if(code.length()>23)code=code.substring(0,22)+"~";
+  textAt(11,y+14,code.c_str(),MUTED);
+ }
+ bottom("Hold dial: A-Z");
+}
+void rbLetterScreen(){
+ display->fillScreen(BG);
+ centeredAt(14,"JUMP TO LETTER",SKY);
+ char character[2]={RB_LETTERS[rbLetterIndex],0};
+ display->setTextSize(5);centeredAt(43,character,WHITE);display->setTextSize(1);
+ centeredAt(90,"Rotate to select",SILVER);
+ bottom("OK: jump Back: list");
+}
+void rbPreviewScreen(){
+ display->fillScreen(BG);header("Selected record");
+ String label=rbChosenName;if(label.length()>19)label=label.substring(0,18)+"~";
+ centeredAt(43,label.c_str(),WHITE);
+ String code=rbChosenCode;if(code.length()>20)code=code.substring(0,19)+"~";
+ centeredAt(60,code.c_str(),SKY);
+ centeredAt(85,"Review only",AMBER);
+ bottom("Back: records");
+}
+
 void render(){
  switch(page){
   case HOME:home();break;
@@ -732,6 +787,10 @@ void render(){
 #if MAKERVAULT_NDEF_WRITER_ENABLED
   case NDEF_WRITE:ndefWriterScreen();break;
 #endif
+  case RB_CATEGORIES:rbCategoriesScreen();break;
+  case RB_LIST:rbListScreen();break;
+  case RB_LETTER:rbLetterScreen();break;
+  case RB_PREVIEW:rbPreviewScreen();break;
   case RECENT: simple("Recent tag","Not available");break;
   case CONTROLS:simple("Control test","Turn / press", "Back exits");break;
   case CONNECTIONS:connections();break;
@@ -763,6 +822,20 @@ int categoryCount(){
  return 1;
 }
 void move(int dir){
+ if(page==RB_CATEGORIES){rbCategory=(rbCategory+7+dir)%7;rbCategoriesScreen();return;}
+ if(page==RB_LETTER){rbLetterIndex=(rbLetterIndex+27+dir)%27;rbLetterScreen();return;}
+ if(page==RB_LIST){
+  if(rbStatus!=3||!rbCount)return;
+  if(dir>0){
+   if(rbRow+1<rbCount)rbRow++;
+   else if(rbMore){rbQueue(rbOffset+rbCount,rbLetter);rbDispatch();}
+  }else{
+   if(rbRow>0)rbRow--;
+   else if(rbOffset>0){rbQueue(max(0,rbOffset-RB_PAGE_SIZE),rbLetter,true);rbDispatch();}
+  }
+  rbListScreen();return;
+ }
+
  if(page==MV_STATUS){detailMove(dir,"MakerVault link");return;}
  if(page==MV_TLS_TEST){detailMove(dir,"Test HTTPS");return;}
  if(page==WIFI_STATUS){detailMove(dir,"Wi-Fi status");return;}
@@ -783,9 +856,26 @@ void move(int dir){
  Serial.print("[MENU] ");Serial.println(choices[selected]);
 }
 void choose(){
+ if(page==RB_CATEGORIES){rbQueue(0,"");page=RB_LIST;rbDispatch();render();return;}
+ if(page==RB_LETTER){
+  String letter=String(RB_LETTERS[rbLetterIndex]);
+  rbQueue(0,letter);page=RB_LIST;rbDispatch();render();return;
+ }
+ if(page==RB_LIST){
+  if(rbStatus==3 && rbCount){
+   rbChosenId=rbRows[rbRow].id;rbChosenName=rbRows[rbRow].label;
+   rbChosenCode=rbRows[rbRow].code;page=RB_PREVIEW;render();
+  }
+  return;
+ }
+
  if(page==MAKERTAGS_MENU||page==RFID_MENU){
   if(subSelected==0){scanMakerTagsMode=(page==MAKERTAGS_MENU);page=SCAN;scanResultVisible=false;scanLookupState=0;render();}
   else if(subSelected<categoryCount()){
+   if(page==MAKERTAGS_MENU && subSelected==1 &&
+       mvPairVerified && mvCanWriteTags && mvCanSearchInventory){
+    rbCategory=0;page=RB_CATEGORIES;render();return;
+   }
    unavailableTitle="Operation unavailable";page=UNAVAILABLE;render();
   }
   return;
@@ -826,6 +916,11 @@ void choose(){
  Serial.print("[MENU] Selected: ");Serial.println(choices[selected]);render();
 }
 void back(){
+ if(page==RB_LETTER){page=RB_LIST;render();return;}
+ if(page==RB_PREVIEW){page=RB_LIST;render();return;}
+ if(page==RB_LIST){rbEpoch++;rbStatus=0;page=RB_CATEGORIES;render();return;}
+ if(page==RB_CATEGORIES){page=MAKERTAGS_MENU;subSelected=0;render();return;}
+
 #if MAKERVAULT_NDEF_WRITER_ENABLED
  if(page==NDEF_WRITE){ndefReset(ndefState!=6);page=MAKERTAGS_MENU;render();return;}
 #endif
@@ -840,6 +935,9 @@ void back(){
  if(page==WIFI_MENU||page==MV_MENU){page=CONNECTIONS;render();return;}if(page!=HOME){page=HOME;render();}
 }
 void processInputs(){
+ static uint32_t rbPressAt=0;
+ static bool rbHoldUsed=false;
+
  // Only meaningful menu input defers reader setup.
  const int oldSelection=selected; const Page oldPage=page;
  uint8_t ab=(digitalRead(ENC_A)<<1)|digitalRead(ENC_B);
@@ -852,7 +950,19 @@ void processInputs(){
   Serial.println("[BUTTON] SELECT");
   if(page==KNOWN_WIFI && knownCount && networkSelected<knownCount){
    pendingDeleteSSID=knownSSID[networkSelected];page=DELETE_WIFI;render();
-  }else if(page!=DELETE_WIFI)choose();
+  }else if(page==RB_LIST){rbPressAt=millis();rbHoldUsed=false;}
+  else if(page!=DELETE_WIFI)choose();
+ }
+ // A short knob click selects a record; holding it opens the minimal
+ // large-letter A-Z jump. Do not fire the short-click action first.
+ if(rbPressAt && page==RB_LIST && !selectKey.stable &&
+    !rbHoldUsed && (uint32_t)(millis()-rbPressAt)>=650){
+  rbHoldUsed=true;rbLetterIndex=rbLetter.length()?max(0,rbLetter[0]-'A'+1):1;
+  page=RB_LETTER;render();
+ }
+ if(rbPressAt && selectKey.stable){
+  if(!rbHoldUsed && page==RB_LIST)choose();
+  rbPressAt=0;
  }
  if(backKey.pressed())back();
  if(confirmKey.pressed()){
@@ -861,7 +971,8 @@ void processInputs(){
   if(page==NDEF_WRITE){if(ndefState==2)ndefConfirm();else if(ndefState==6||ndefState==7){ndefReset(false);page=MAKERTAGS_MENU;}render();return;}
 #endif
   if(page==REGISTRATION && (regState==2||regState==6)){regSubmit(regUid,regKind);registrationScreen();return;}
-  if(page==HOME)choose();else if(page==CONTROLS)control("Confirm");
+  if(page==RB_CATEGORIES||page==RB_LIST||page==RB_LETTER||page==RB_PREVIEW)choose();
+  else if(page==HOME)choose();else if(page==CONTROLS)control("Confirm");
   else if(page==SCAN){scanResultVisible=false;scanLookupQueued=false;scanLookupState=0;scanPage();}
   else if(page==DELETE_WIFI){
    // Resolve by SSID, not list index, to avoid deleting the wrong network.
@@ -1061,6 +1172,8 @@ void setup(){
  Serial.println(String("[SYSTEM] READY v")+MAKERVAULT_FIRMWARE_VERSION);
 }
 void loop(){
+ rbDispatch();
+ if(page==RB_LIST){static uint8_t rbLast=255;if(rbLast!=rbStatus){rbLast=rbStatus;rbListScreen();}}
  provisioningLoop();
  mvLoop();mvHeartbeatLoop();
  regScheduleCancel();
