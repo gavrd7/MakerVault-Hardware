@@ -36,7 +36,12 @@ void regCompleteTask(void *) {
     regAutoWriteId=mvField(response,"ndef_write_id");
     regAutoUrl=mvField(response,"ndef_url");
     regAutoTagId=mvField(response,"ndef_tag_id");
-    if(regAutoWriteId.length()!=36 || regAutoTagId.length()!=11 ||
+    if(regKind!="nfc"){
+      // Generic RFID/MIFARE Classic is intentionally UID-only. An NDEF
+      // grant is neither requested nor required for successful assignment.
+      regAutoWriteId="";regAutoUrl="";regAutoTagId="";
+      regState=4;regError="";
+    }else if(regAutoWriteId.length()!=36 || regAutoTagId.length()!=11 ||
        regAutoUrl.length()<20 || regAutoUrl.length()>240){
       // Registration can succeed without an NFC grant (e.g. another pending
       // request). Never leave the device claiming success while the browser
