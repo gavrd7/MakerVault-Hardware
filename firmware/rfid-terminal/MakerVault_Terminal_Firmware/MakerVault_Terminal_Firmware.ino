@@ -14,8 +14,8 @@
 #include "scan_lookup.h"
 #include "remote_lookup.h"
 #include "ntag215_feature_gate.h"
-// The experimental writer is excluded at compile time until device acceptance.
-#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+// NTAG215 NFC link writing is enabled in standard v0.7 builds.
+#if MAKERVAULT_NDEF_WRITER_ENABLED
 #include "connected_ndef_write.h"
 #endif
 
@@ -709,7 +709,7 @@ void registrationScreen(){
   bottom("Back: menu");
  }
 }
-#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+#if MAKERVAULT_NDEF_WRITER_ENABLED
 void ndefWriterScreen(){
  detailClear();detailWrapped("Tag: "+ndefTagId,WHITE);
  if(ndefState==1)detailWrapped(ndefError.length()?ndefError:(ndefAutoFlow?"Keep / return same tag":"Present matching NTAG215"),ndefError.length()?AMBER:SILVER);
@@ -729,7 +729,7 @@ void render(){
   case SCAN:scanPage();break;
   case REGISTRATION:registrationScreen();break;
   case LOOKUP_REQUEST:remoteLookupScreen();break;
-#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+#if MAKERVAULT_NDEF_WRITER_ENABLED
   case NDEF_WRITE:ndefWriterScreen();break;
 #endif
   case RECENT: simple("Recent tag","Not available");break;
@@ -826,7 +826,7 @@ void choose(){
  Serial.print("[MENU] Selected: ");Serial.println(choices[selected]);render();
 }
 void back(){
-#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+#if MAKERVAULT_NDEF_WRITER_ENABLED
  if(page==NDEF_WRITE){ndefReset(ndefState!=6);page=MAKERTAGS_MENU;render();return;}
 #endif
  if(page==LOOKUP_REQUEST && remoteLookupState!=2){remoteLookupReset();page=MAKERTAGS_MENU;render();return;}
@@ -857,7 +857,7 @@ void processInputs(){
  if(backKey.pressed())back();
  if(confirmKey.pressed()){
   Serial.println("[BUTTON] CONFIRM");
-#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+#if MAKERVAULT_NDEF_WRITER_ENABLED
   if(page==NDEF_WRITE){if(ndefState==2)ndefConfirm();else if(ndefState==6||ndefState==7){ndefReset(false);page=MAKERTAGS_MENU;}render();return;}
 #endif
   if(page==REGISTRATION && (regState==2||regState==6)){regSubmit(regUid,regKind);registrationScreen();return;}
@@ -913,7 +913,7 @@ void readerInit(){
 }
 
 void pollTag(){
-#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+#if MAKERVAULT_NDEF_WRITER_ENABLED
  const bool ndefScanning=(page==NDEF_WRITE && (ndefState==1 || ndefState==4 || ndefState==8));
  if(!ndefScanning && ndefState!=0 && page==NDEF_WRITE)return;
 #else
@@ -922,7 +922,7 @@ void pollTag(){
  if((!ndefScanning && page!=SCAN && !(page==REGISTRATION && regState==1) && !(page==LOOKUP_REQUEST && remoteLookupState==1))||(page==SCAN && scanResultVisible)||(uint32_t)(millis()-lastPoll)<100)return;
  lastPoll=millis();digitalWrite(TFT_CS,HIGH);
  bool cardReady=false;
-#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+#if MAKERVAULT_NDEF_WRITER_ENABLED
  if(ndefScanning && ndefAutoFlow){
    // A tag already scanned during registration may be in HALT, not IDLE.
    // REQA (IsNewCardPresent) only sees IDLE tags. WUPA is required to
@@ -939,7 +939,7 @@ void pollTag(){
  }
  uid.toUpperCase();recentUid=uid;
  recentType=String(rfid.PICC_GetTypeName(rfid.PICC_GetType(rfid.uid.sak)));
-#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+#if MAKERVAULT_NDEF_WRITER_ENABLED
  if(ndefScanning){
   if(ndefState==8){
    MakerVaultRc522PageIO io(rfid);
@@ -1072,7 +1072,7 @@ void loop(){
  regSubmissionWatchdog();
  if(regServerClosed && page==REGISTRATION){regReset();page=MAKERTAGS_MENU;render();}
  remoteLookupPoll();
-#if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
+#if MAKERVAULT_NDEF_WRITER_ENABLED
  // A previous verified or failed NFC request must not block the next
  // confirmed registration. Do not discard an active, unverified operation.
  if(regState==4 && regAutoWriteId.length()==36 &&
