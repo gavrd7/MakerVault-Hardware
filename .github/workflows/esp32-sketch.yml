@@ -28,36 +28,34 @@ jobs:
           arduino-cli lib install "Adafruit NeoPixel"
           arduino-cli lib install "MFRC522"
           arduino-cli lib install "ESP32CertBundle"
-      - name: Compile terminal sketch (safe writer gate disabled)
+      - name: Compile standard v0.7 firmware (NFC writing enabled by default)
         run: |
           arduino-cli compile --fqbn esp32:esp32:esp32s3:PartitionScheme=huge_app \
             --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1" \
             firmware/rfid-terminal/MakerVault_Terminal_Firmware
-      - name: Compile experimental writer variant (CI only)
+      - name: Compile v0.7 NFC writer release binary
         run: |
           arduino-cli compile --fqbn esp32:esp32:esp32s3:PartitionScheme=huge_app \
-            --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1 -DMAKERVAULT_NDEF_WRITER_EXPERIMENTAL=1" \
+            --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1" \
             --output-dir ./dist/experimental \
             firmware/rfid-terminal/MakerVault_Terminal_Firmware
 
-      - name: Upload experimental build artifacts
+      - name: Upload v0.7 writer-enabled firmware
         uses: actions/upload-artifact@v4
         with:
-          name: makervault-ndef-experimental-esp32s3
+          name: makervault-terminal-v0.7-esp32s3
           path: dist/experimental/*.bin
           if-no-files-found: error
 
-      - name: Package Arduino sketch for hardware testing
+      - name: Package v0.7 Arduino source (writer enabled)
         run: |
           mkdir -p dist/source
           cp -a firmware/rfid-terminal/MakerVault_Terminal_Firmware dist/source/
-          sed -i 's/^#define MAKERVAULT_NDEF_WRITER_EXPERIMENTAL 0$/#define MAKERVAULT_NDEF_WRITER_EXPERIMENTAL 1/' \
-            dist/source/MakerVault_Terminal_Firmware/ntag215_feature_gate.h
           cd dist/source
-          zip -qr ../MakerVault_Terminal_NDEF_Experimental_Arduino.zip MakerVault_Terminal_Firmware
-      - name: Upload experimental Arduino sketch ZIP
+          zip -qr ../MakerVault_Terminal_v0.7_Arduino.zip MakerVault_Terminal_Firmware
+      - name: Upload v0.7 Arduino sketch ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: makervault-ndef-experimental-arduino-sketch
+          name: makervault-terminal-v0.7-arduino-sketch
           path: dist/MakerVault_Terminal_NDEF_Experimental_Arduino.zip
           if-no-files-found: error
