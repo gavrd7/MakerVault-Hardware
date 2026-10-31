@@ -10,7 +10,7 @@ volatile uint8_t ndefState=0;
 bool ndefAutoFlow=false;
 // 0 idle; 1 present tag; 2 physical confirm; 3 checking live server;
 // 4 authorized physical write; 5 reporting verification; 6 success; 7 error
-uint32_t ndefLastPoll=0, ndefStarted=0, ndefAuthorizedAt=0;
+uint32_t ndefLastPoll=0, ndefStarted=0, ndefAuthorizedAt=0, ndefLastStatusPoll=0;
 volatile bool ndefCancelledFromBrowser=false;
 
 void ndefPendingTask(void *) {
@@ -41,6 +41,40 @@ void ndefSchedulePoll() {
   if((uint32_t)(millis()-ndefLastPoll)<5000)return;
   ndefLastPoll=millis();
   if(xTaskCreatePinnedToCore(ndefPendingTask,"mv_ndef_poll",12288,nullptr,1,&mvTask,0)!=pdPASS)
+    mvTask=nullptr;
+}
+
+// Browser cancellation must propagate while waiting for a physical tag,
+// not only when the operator presses Confirm. This is read-only and never
+// grants write authorization.
+void ndefWatchTask(void *) {
+  const String requestedId=ndefId;
+  String reply;
+  const int status=mvHttps("/api/device/v1/ndef-write/"+requestedId+"/status/","GET","",reply,true);
+  if(ndefId==requestedId && (ndefState==1 || ndefState==2 || ndefState==4)) {
+    if(status==200) {
+      const String current=mvField(reply,"state");
+      if(current!="pending" || mvField(reply,"uid")!=ndefUid ||
+         mvField(reply,"url")!=ndefUrl || mvField(reply,"maker_tag_id")!=ndefTagId) {
+        ndefError=current=="cancelled"?"NFC write cancelled":"NFC request no longer valid";
+        ndefState=7;
+        Serial.println("[NDEF] Server invalidated pending NFC operation");
+      }
+    } else {
+      // Loss of contact is not an authorization to write; reject only
+      // the short-lived pre-write state, not read-only waiting.
+      if(ndefState==4){ndefError="Cannot confirm NFC authorization";ndefState=7;}
+    }
+  }
+  mvTask=nullptr;vTaskDelete(nullptr);
+}
+void ndefScheduleWatch(){
+  if((ndefState!=1 && ndefState!=2 && ndefState!=4) ||
+     mvTask || !mvPairVerified || !mvEndpointApproved() ||
+     WiFi.status()!=WL_CONNECTED)return;
+  if((uint32_t)(millis()-ndefLastStatusPoll)<2000UL)return;
+  ndefLastStatusPoll=millis();
+  if(xTaskCreatePinnedToCore(ndefWatchTask,"mv_ndef_watch",12288,nullptr,1,&mvTask,0)!=pdPASS)
     mvTask=nullptr;
 }
 
@@ -111,7 +145,7 @@ void ndefReset(bool cancelServer) {
   if(cancelServer && ndefId.length()==36 && ndefState!=6)
     ndefCancelId=ndefId;
   ndefState=0;ndefId="";ndefUid="";ndefTagId="";ndefUrl="";ndefExistingUrl="";
-  ndefError="";ndefStarted=0;ndefAuthorizedAt=0;ndefAutoFlow=false;ndefLastPoll=millis();
+  ndefError="";ndefStarted=0;ndefAuthorizedAt=0;ndefAutoFlow=false;ndefLastPoll=millis();ndefLastStatusPoll=millis();
 }
 
 // Call from loop, never from an HTTPS task. Authorization is short lived,
