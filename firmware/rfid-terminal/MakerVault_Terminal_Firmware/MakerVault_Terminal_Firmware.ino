@@ -39,7 +39,9 @@ constexpr uint16_t BG=0x0843, CARD=0x10C6, NAVY=0x10ED,
 
 // Write actions remain feature gated until fully implemented. API scope alone
 // never authorises a placeholder to appear as a working device operation.
-constexpr bool MAKERTAG_CREATE_IMPLEMENTED=false, RFID_WRITE_IMPLEMENTED=false;
+// This feature branch enables the new MakerTag browser for staged hardware
+// testing. The released main-branch v0.7 firmware remains unchanged.
+constexpr bool MAKERTAG_CREATE_IMPLEMENTED=true, RFID_WRITE_IMPLEMENTED=false;
 enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST,NDEF_WRITE,RB_CATEGORIES,RB_LIST,RB_LETTER,RB_PREVIEW};
 Page page=HOME;
 const char* choices[]={"MakerTags","RFID Tags","Connections","System info"};
@@ -843,7 +845,7 @@ void control(const char* event){
  if(page==CONTROLS){display->fillRoundRect(10,102,108,10,2,NAVY);textAt(14,103,event,WHITE);feedbackUntil=millis()+850;}
 }
 int categoryCount(){
- if(page==MAKERTAGS_MENU)return 1+int(MAKERTAG_CREATE_IMPLEMENTED && mvCanWriteTags && mvPairVerified);
+ if(page==MAKERTAGS_MENU)return 1+int(MAKERTAG_CREATE_IMPLEMENTED && mvCanWriteTags && mvCanSearchInventory && mvPairVerified);
  if(page==RFID_MENU)return 1+int(RFID_WRITE_IMPLEMENTED && mvCanWriteTags && mvPairVerified);
  return 1;
 }
