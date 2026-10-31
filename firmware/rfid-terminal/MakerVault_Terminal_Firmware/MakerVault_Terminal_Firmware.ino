@@ -698,7 +698,7 @@ void registrationScreen(){
 #if MAKERVAULT_NDEF_WRITER_EXPERIMENTAL
 void ndefWriterScreen(){
  detailClear();detailWrapped("Tag: "+ndefTagId,WHITE);
- if(ndefState==1)detailWrapped(ndefAutoFlow?"Keep / return same tag":"Present matching NTAG215",SILVER);
+ if(ndefState==1)detailWrapped(ndefError.length()?ndefError:(ndefAutoFlow?"Keep / return same tag":"Present matching NTAG215"),ndefError.length()?AMBER:SILVER);
  else if(ndefState==2){detailWrapped(ndefExistingUrl.length()?"Overwrite existing URL?":"Write new NFC URL?",AMBER);if(ndefExistingUrl.length())detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);}
  else if(ndefState==3)detailWrapped(ndefAutoFlow?"Keep tag in place":"Checking server authorization",SILVER);
  else if(ndefState==4)detailWrapped(ndefAutoFlow?"Keep / return same tag":"Present tag again to write",AMBER);
@@ -942,14 +942,17 @@ void pollTag(){
         rfid.uid.uidByte,rfid.uid.size,ndefUid.c_str())){
     ndefError="Wrong tag UID";ndefState=7;
    }else if(!MakerVaultNtag215::inspectMemory(io,rfid.uid.uidByte,info)){
-    ndefError="Cannot read tag config";ndefState=7;
+    ndefError="Return same tag to read";
    }else if(!info.supported){
     ndefError="Not NTAG215 (CC)";ndefState=7;
    }else if(!info.writable){
     ndefError="Locked / protected tag";ndefState=7;
    }else if(!MakerVaultNtag215::readNdefArea(io,area)){
-    ndefError="Cannot read tag memory";ndefState=7;
+    ndefError="Return same tag to read";
    }else{
+    // Pre-write inspection is read-only. A transient RF loss can be retried
+    // after reselecting the same physical UID; no NFC pages were changed.
+    ndefError="";
     const auto decision=MakerVaultNtag215::assess(
       info,rfid.uid.uidByte,rfid.uid.size,ndefUid.c_str(),
       ndefTagId.c_str(),ndefUrl.c_str(),area,sizeof(area),true,true);
