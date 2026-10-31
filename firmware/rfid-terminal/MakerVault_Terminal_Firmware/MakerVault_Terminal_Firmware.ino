@@ -655,7 +655,7 @@ void registrationScreen(){
   if(regUid.length()>REG_TEXT_CHARS)
    textAt(7,65,regUid.substring(REG_TEXT_CHARS,REG_TEXT_CHARS*2).c_str(),WHITE);
   textAt(7,83,regKind=="nfc"?"Assign & write?":"Assign this tag?",SKY);
-  if(regKind=="nfc")textAt(7,96,"Hold same tag in place",SILVER);
+  if(regKind=="nfc")textAt(7,96,"Keep tag in place",SILVER);
   bottom(regKind=="nfc"?"OK: start Back: no":"OK: save Back: no");
  } else if(regState==6) {
   // Both names wrap at word boundaries. Long labels cycle through their
