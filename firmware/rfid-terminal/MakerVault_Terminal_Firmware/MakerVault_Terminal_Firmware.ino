@@ -658,7 +658,20 @@ void regDisplayRecord() {
  bottom("Back: dismiss");
 }
 
+void makerTagSuccessIcon(const char* title,const char* detail){
+ display->fillScreen(BG);header("MakerTags");
+ display->drawCircle(64,56,24,GREEN);
+ display->drawCircle(64,56,23,GREEN);
+ display->drawLine(51,56,61,66,GREEN);
+ display->drawLine(61,66,78,47,GREEN);
+ centeredAt(87,title,GREEN);
+ centeredAt(101,detail,SILVER);
+ bottom("OK: finish");
+}
 void registrationScreen(){
+ if(regState==4){
+  makerTagSuccessIcon("MakerTag assigned","UID linked");return;
+ }
  display->fillScreen(BG);
  header("Assign MakerTag");
  if(regState==1) {
@@ -712,6 +725,9 @@ void registrationScreen(){
 }
 #if MAKERVAULT_NDEF_WRITER_ENABLED
 void ndefWriterScreen(){
+ if(ndefState==6 && ndefAutoFlow){
+  makerTagSuccessIcon("MakerTag ready",ndefTagId.c_str());return;
+ }
  detailClear();detailWrapped("Tag: "+ndefTagId,WHITE);
  if(ndefState==1)detailWrapped(ndefError.length()?ndefError:(ndefAutoFlow?"Keep / return same tag":"Present matching NTAG215"),ndefError.length()?AMBER:SILVER);
  else if(ndefState==2){detailWrapped(ndefExistingUrl.length()?"Overwrite existing URL?":"Write new NFC URL?",AMBER);if(ndefExistingUrl.length())detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);}
@@ -989,6 +1005,7 @@ void processInputs(){
   if(page==NDEF_WRITE){if(ndefState==2)ndefConfirm();else if(ndefState==6||ndefState==7){ndefReset(false);page=MAKERTAGS_MENU;}render();return;}
 #endif
   if(page==REGISTRATION && (regState==2||regState==6)){regSubmit(regUid,regKind);registrationScreen();return;}
+  if(page==REGISTRATION && regState==4){regReset();page=MAKERTAGS_MENU;render();return;}
   if(page==RB_CATEGORIES||page==RB_LIST||page==RB_LETTER||page==RB_PREVIEW)choose();
   else if(page==HOME)choose();else if(page==CONTROLS)control("Confirm");
   else if(page==SCAN){scanResultVisible=false;scanLookupQueued=false;scanLookupState=0;scanPage();}
