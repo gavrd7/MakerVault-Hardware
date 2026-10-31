@@ -19,7 +19,7 @@
 #include "connected_ndef_write.h"
 #endif
 
-// MakerVault handheld UI v0.6.1 -- ESP32-S3 SuperMini, Rev C.3
+// MakerVault handheld UI v0.7.0 -- ESP32-S3 SuperMini, Rev C.3
 // Shared hardware SPI, read-only RFID, all original GPIO assignments.
 constexpr uint8_t SCK_PIN=12, MOSI_PIN=11, MISO_PIN=13;
 constexpr uint8_t TFT_CS=1, TFT_DC=2, TFT_RST=43;
