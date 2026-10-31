@@ -1053,12 +1053,12 @@ void loop(){
  // confirmed registration. Do not discard an active, unverified operation.
  if(regState==4 && regAutoWriteId.length()==36 &&
     (ndefState==6 || ndefState==7)) {
-   Serial.printf("[NDEF] Clearing terminal NFC state %u before registration handoff\\n",
+   Serial.printf("[NDEF] Clearing terminal NFC state %u before registration handoff\n",
                  (unsigned)ndefState);
    ndefReset(false);
  }
  if(regState==4 && regAutoWriteId.length()==36 && ndefState==0) {
-   Serial.printf("[NDEF] Registration handoff granted for %s\\n",regAutoTagId.c_str());
+   Serial.printf("[NDEF] Registration handoff granted for %s\n",regAutoTagId.c_str());
    // Registration was physically confirmed; continue the same operation.
    // Exact UID and URL are bound to the freshly created server write grant.
    ndefId=regAutoWriteId;ndefUid=regUid;ndefTagId=regAutoTagId;ndefUrl=regAutoUrl;
@@ -1067,7 +1067,7 @@ void loop(){
  } else if(regState==4 && regAutoWriteId.length()==36 && ndefState!=0) {
    // Never claim success when another unverified NFC operation is active.
    // Expose the issue rather than leaving the registration screen stuck.
-   Serial.printf("[NDEF] Registration handoff blocked by active state %u\\n",
+   Serial.printf("[NDEF] Registration handoff blocked by active state %u\n",
                  (unsigned)ndefState);
    regError="NFC busy; finish previous write";
    regState=5;
