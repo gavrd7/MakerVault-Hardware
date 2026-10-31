@@ -1,4 +1,4 @@
-# ESP32-S3 single-scan MakerTags acceptance (experimental)
+# ESP32-S3 single-scan MakerTags acceptance (v0.7)
 
 This procedure applies only to the MakerVault ESP32-S3 handheld terminal.
 **This is not a production-approved writer.** Test with disposable NTAG215 tags.
@@ -6,7 +6,7 @@ This procedure applies only to the MakerVault ESP32-S3 handheld terminal.
 ## Prerequisites
 
 - Stage the matching MakerVault PR with database migrations applied.
-- Use the experimental firmware sketch from the matching hardware PR and preserve existing pairing settings.
+- Use the v0.7 release firmware sketch from the matching hardware PR and preserve existing pairing settings.
 - Require the terminal to advertise `ntag215_ndef_write`, a paired HTTPS endpoint and `tags:write` permission.
 - Record the current firmware version and keep the last known working firmware available.
 - Use a fresh, disposable NTAG215 with no important contents.
@@ -47,11 +47,11 @@ No ordinary scan writes memory. A combined assignment may commit the database be
 This is a **staging acceptance snapshot**, not approval to publish firmware.
 The MakerVault app PR is [#154](https://github.com/gavrd7/MakerVault/pull/154), and the matching hardware PR is [#9](https://github.com/gavrd7/MakerVault-Hardware/pull/9).
 
-- PASS: normal tag scan and lookup, assignment + readback, reassignment with stable URL, wrong UID and tag substitution handling, pre-write removal/retry, cancellation after flashing the known-updated experimental firmware (7A), no-write local/server expiry (7B), and post-expiry refusal to reuse the expired request (7C).
+- PASS: normal tag scan and lookup, assignment + readback, reassignment with stable URL, wrong UID and tag substitution handling, pre-write removal/retry, cancellation after flashing the known-updated v0.7 firmware (7A), no-write local/server expiry (7B), and post-expiry refusal to reuse the expired request (7C).
 - PASS: generic MIFARE Classic 1K UID-based association and subsequent server lookup without demonstrated physical tag-memory modification. Distinguish **RFID UID registration** from **verified NTAG215 NFC URL programming** in messaging (7D).
 - PASS: terminal layout/usability checks 8A.1–8A.4 on the tested build; subsequent display-polish commit `1d75c60` (centered tag type, repositioned unknown-tag message) **requires a fresh physical check** after flashing. The requested NTAG215-specific family label remains pending safe model identification.
 - PASS: MakerTags web filters/responsive layout and NFC/RFID identity distinction (8B). Terminology changes in app PR #154 require staging visual verification after rebuild. `Reader technology: Auto / unspecified` is optional metadata and must not be confused with tag family recognition.
 - PASS: app HTTPS regression with two threaded native HTTPS workers, four threads each: 30/30 localhost TLS/HTTP responses, responsive terminal and automatically updating heartbeat; iPhone NTAG215 phone URL opened via trusted HTTPS, resolved correct inventory record, and terminal independently resolved same record (9A).
 - **NOT YET VERIFIED:** locked/password-protected genuine NTAG215 physical write rejection, final display-polish firmware flashed and inspected, longer-term service resilience under stalled clients. Unsupported Classic 1K registration alone does not cover protected NTAG215 negative testing.
 
-Keep the experimental feature gate and avoid production release until these remaining risks are explicitly accepted or tested. Review the source PR conversations for individual test evidence and incident details.
+Use the standard enabled NFC writer in v0.7; document residual risks explicitly and do not claim unperformed physical tests passed. Review the source PR conversations for individual test evidence and incident details.
