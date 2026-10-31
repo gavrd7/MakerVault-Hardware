@@ -778,7 +778,9 @@ void rbPreviewScreen(){
  if(code.isEmpty())code="Ref: "+rbChosenId.substring(0,8);
  if(code.length()>20)code=code.substring(0,19)+"~";
  centeredAt(60,code.c_str(),SKY);
- if(rbBeginStatus==1||rbBeginStatus==2)
+ if(rbBeginCancel)
+  centeredAt(85,"Cancelling...",AMBER);
+ else if(rbBeginStatus==1||rbBeginStatus==2)
   centeredAt(85,"Connecting...",SKY);
  else if(rbBeginStatus==4)
   centeredAt(85,rbBeginError.c_str(),AMBER);
@@ -970,7 +972,10 @@ void processInputs(){
  // large-letter A-Z jump. Do not fire the short-click action first.
  if(rbPressAt && page==RB_LIST && !selectKey.stable &&
     !rbHoldUsed && (uint32_t)(millis()-rbPressAt)>=650){
-  rbHoldUsed=true;rbLetterIndex=rbLetter.length()?max(0,rbLetter[0]-'A'+1):1;
+  rbHoldUsed=true;
+  char current=rbLetter.length()?rbLetter[0]:(rbCount?rbRows[rbRow].label[0]:'A');
+  current=toupper((unsigned char)current);
+  rbLetterIndex=(current>='A'&&current<='Z')?current-'A'+1:0;
   page=RB_LETTER;render();
  }
  if(rbPressAt && selectKey.stable){
