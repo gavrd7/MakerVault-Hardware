@@ -31,6 +31,27 @@ int main() {
   assert(!MakerVaultNdef::encodeUri("https://bad host/", encoded, sizeof(encoded), length));
   assert(!MakerVaultNdef::encodeUri("http://host/", encoded, 4, length));
   assert(!MakerVaultNdef::decodeUri(encoded, 7, nullptr, 0));
+  // Phone-written URI records commonly compress the HTTPS prefix.
+  // A well-formed foreign URL is eligible for an *explicit* overwrite;
+  // unknown URI schemes or malformed records must remain protected.
+  const uint8_t compressedHttps[] = {
+    0x03, 0x10, 0xD1, 0x01, 0x0C, 0x55, 0x04,
+    'e','x','a','m','p','l','e','.','c','o','m',0xFE
+  };
+  char foreignUrl[MakerVaultNdef::kMaxUriLength + 1] = {};
+  assert(MakerVaultNdef::decodeUri(compressedHttps, sizeof(compressedHttps),
+                                   foreignUrl, sizeof(foreignUrl)));
+  assert(strcmp(foreignUrl, "https://example.com") == 0);
+  uint8_t malformedForeign[sizeof(compressedHttps)] = {};
+  memcpy(malformedForeign, compressedHttps, sizeof(malformedForeign));
+  malformedForeign[6] = 0x05; // Unrecognised prefix code.
+  assert(!MakerVaultNdef::decodeUri(malformedForeign, sizeof(malformedForeign),
+                                    foreignUrl, sizeof(foreignUrl)));
+  memcpy(malformedForeign, compressedHttps, sizeof(malformedForeign));
+  malformedForeign[sizeof(malformedForeign)-1] = 0x00; // Missing TLV terminator.
+  assert(!MakerVaultNdef::decodeUri(malformedForeign, sizeof(malformedForeign),
+                                    foreignUrl, sizeof(foreignUrl)));
+
   const uint8_t uid[7] = {0x04,0x11,0x22,0x33,0x44,0x55,0x66};
   const uint8_t cc[4] = {0xE1,0x10,0x3E,0x00};
   const uint8_t clear[3] = {0,0,0};
