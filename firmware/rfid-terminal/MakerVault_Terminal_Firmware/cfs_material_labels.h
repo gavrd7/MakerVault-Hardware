@@ -3,6 +3,7 @@
 // Known entries mirror the read-only CFS-RFID display catalogue. Unknown IDs
 // retain their identifier rather than inventing a manufacturer or product.
 #include <string.h>
+#include <stdint.h>
 namespace CfsTag {
 struct MaterialLabel { const char *id; const char *manufacturer; const char *name; };
 static constexpr MaterialLabel kMaterialLabels[] = {
