@@ -14,6 +14,8 @@
 #include "connected_registration.h"
 #include "terminal_record_browser.h"
 #include "scan_lookup.h"
+#include "cfs_tag_reader.h"
+#include "cfs_spool_lookup.h"
 #include "remote_lookup.h"
 #include "ntag215_feature_gate.h"
 // NTAG215 NFC link writing is enabled in standard v0.7 builds.
@@ -58,6 +60,9 @@ String pendingDeleteSSID="";
 bool scanResultVisible=false, hasScanned=false, knownReader=false;
 // The physical reader is shared, but each menu has distinct result semantics.
 bool scanMakerTagsMode=true;
+// CFS material preview is read-only and shown only in the generic RFID scan.
+bool cfsDetected=false;
+CfsTag::Material cfsMaterial={};
 uint8_t versionReg=0;
 String recentUid="", recentType="";
 uint32_t lastPoll=0,feedbackUntil=0;
@@ -320,6 +325,19 @@ void scanPage(){
   bottom("Back: menu");return;
  }
  header(scanMakerTagsMode?"MakerTag scan":"RFID scan");
+ if(!scanMakerTagsMode && cfsDetected){
+  centeredAt(34,"CFS material",GREEN);
+  textAt(7,47,(String("ID: ")+cfsMaterial.materialId).c_str(),WHITE);
+  textAt(7,60,(String("Color: #")+cfsMaterial.color).c_str(),SKY);
+  textAt(7,73,(String("Weight: ")+CfsTag::weightLabel(cfsMaterial.weightCode)).c_str(),WHITE);
+  if(cfsLookupState==2)
+   textAt(7,86,(String("Spool: ")+cfsLookupSpool).substring(0,19).c_str(),GREEN);
+  else if(cfsLookupState==3)textAt(7,86,"Spool not linked",AMBER);
+  else if(cfsLookupState==4)textAt(7,86,"Lookup unavailable",AMBER);
+  else textAt(7,86,"Checking spool...",SILVER);
+  textAt(7,97,recentUid.substring(0,19).c_str(),SILVER);
+  bottom("Confirm: rescan");return;
+ }
  if(!scanMakerTagsMode && scanLookupState==2){
   centeredAt(55,"MakerTag found",GREEN);
   centeredAt(75,"Use Scan MakerTag",SKY);
@@ -1092,7 +1110,7 @@ void processInputs(){
   if(page==REGISTRATION && regState==4){regReset();page=MAKERTAGS_MENU;render();return;}
   if(page==RB_CATEGORIES||page==RB_LIST||page==RB_LETTER||page==RB_PREVIEW)choose();
   else if(page==HOME)choose();else if(page==CONTROLS)control("Confirm");
-  else if(page==SCAN){scanResultVisible=false;scanLookupQueued=false;scanLookupState=0;scanPage();}
+  else if(page==SCAN){scanResultVisible=false;scanLookupQueued=false;scanLookupState=0;cfsDetected=false;cfsLookupQueued=false;cfsLookupState=0;scanPage();}
   else if(page==DELETE_WIFI){
    // Resolve by SSID, not list index, to avoid deleting the wrong network.
    for(uint8_t i=0;i<knownCount;i++){
@@ -1277,6 +1295,18 @@ void pollTag(){
   return;
  }
 #endif
+ // Only the generic Read RFID screen inspects a possible Creality CFS
+ // material sector. MakerTag creation, registration and NTAG215 writing
+ // keep their existing behaviour and never read these CFS sectors.
+ cfsDetected=false;
+ if(page==SCAN && !scanMakerTagsMode &&
+    rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_1K){
+  CfsTag::Material decoded={};
+  if(CfsTag::readMaterialSector(rfid,decoded)){
+   cfsMaterial=decoded;
+   cfsDetected=true;
+  }
+ }
  rfid.PICC_HaltA();rfid.PCD_StopCrypto1();
  if(page==LOOKUP_REQUEST){
   auto family=rfid.PICC_GetType(rfid.uid.sak);
@@ -1296,7 +1326,13 @@ void pollTag(){
   regState=7;registrationScreen();regScheduleProbe();return;
  }
  hasScanned=true;scanResultVisible=true;
- scanLookupBegin(recentUid,rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_UL?"nfc":"rfid");
+ if(cfsDetected){
+  scanLookupQueued=false;scanLookupState=0;
+  cfsSpoolLookupBegin(recentUid);
+ }else{
+  cfsLookupQueued=false;cfsLookupState=0;
+  scanLookupBegin(recentUid,rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_UL?"nfc":"rfid");
+ }
  Serial.printf("[RFID] UID=%s, Type=%s\n",recentUid.c_str(),recentType.c_str());
  scanPage();
 }
@@ -1349,6 +1385,7 @@ void loop(){
  regScheduleCancel();
  regScheduleProbe();
  scanLookupDispatch();
+ cfsSpoolLookupDispatch();
  regSchedulePoll();
  regCheckStatus();
  regDispatchSubmit();
@@ -1402,7 +1439,7 @@ void loop(){
  processInputs();
  if(!readerInitDone && (uint32_t)(millis()-lastInputAt)>1100)readerInit();
  if(readerInitDone)pollTag();
- if(page==SCAN && scanResultVisible){static uint8_t lastScanLookup=255;static uint32_t lastScanPaint=0;if(lastScanLookup!=scanLookupState || (scanLookupState==2 && millis()-lastScanPaint>4000)){lastScanLookup=scanLookupState;lastScanPaint=millis();scanPage();}}
+ if(page==SCAN && scanResultVisible){static uint8_t lastScanLookup=255;static uint32_t lastScanPaint=0;if(lastScanLookup!=(cfsDetected?uint8_t(cfsLookupState+10):scanLookupState) || (scanLookupState==2 && millis()-lastScanPaint>4000)){lastScanLookup=cfsDetected?uint8_t(cfsLookupState+10):scanLookupState;lastScanPaint=millis();scanPage();}}
  if((uint32_t)(millis()-footerChecked)>250){footerChecked=millis();refreshFooter();
   if(page==MV_PAIR && mvPairState==2){static uint32_t prevSecond=0;uint32_t second=(millis()-mvPairStarted)/1000;if(second!=prevSecond){prevSecond=second;mvPairPage();}}
   if(page==MV_PAIR){
