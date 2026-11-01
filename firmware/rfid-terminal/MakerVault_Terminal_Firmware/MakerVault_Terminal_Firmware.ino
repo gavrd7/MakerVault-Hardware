@@ -734,6 +734,7 @@ void ndefWriterScreen(){
  detailClear();detailWrapped("Tag: "+ndefTagId,WHITE);
  if(ndefState==1)detailWrapped(ndefError.length()?ndefError:(ndefAutoFlow?"Keep / return same tag":"Present matching NTAG215"),ndefError.length()?AMBER:SILVER);
  else if(ndefState==9){detailWrapped("Replace existing NFC URL?",AMBER);detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);}
+ else if(ndefState==10)detailWrapped("Checking authorization...",SKY);
  else if(ndefState==2){detailWrapped(ndefExistingUrl.length()?"Overwrite existing URL?":"Write new NFC URL?",AMBER);if(ndefExistingUrl.length())detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);}
  else if(ndefState==3)detailWrapped(ndefAutoFlow?"Keep tag in place":"Checking server authorization",SILVER);
  else if(ndefState==4)detailWrapped(ndefAutoFlow?"Keep / return same tag":"Present tag again to write",AMBER);
@@ -1077,7 +1078,11 @@ void processInputs(){
   Serial.println("[BUTTON] CONFIRM");
 #if MAKERVAULT_NDEF_WRITER_ENABLED
   if(page==NDEF_WRITE){
-   if(ndefState==9){ndefForeignUrlOverride=true;ndefState=2;ndefConfirm();}
+   if(ndefState==9){
+    // One physical Confirm approves this overwrite. If an HTTPS task is
+    // already running, queue authorization rather than show another prompt.
+    ndefForeignUrlOverride=true;ndefState=10;
+   }
    else if(ndefState==2)ndefConfirm();
    else if(ndefState==6||ndefState==7){ndefReset(false);page=MAKERTAGS_MENU;}
    render();return;
@@ -1373,6 +1378,14 @@ void loop(){
                  (unsigned)ndefState);
    regError="NFC busy; finish previous write";
    regState=5;
+ }
+ if(page==NDEF_WRITE && ndefState==10 && !mvTask){
+  ndefState=2;
+  if(!ndefConfirm()){
+   // Do not consume the operator\'s approval merely because another
+   // network operation briefly prevented the status check from starting.
+   if(ndefState==2)ndefState=10;
+  }
  }
  ndefSchedulePoll();
  ndefScheduleWatch();
