@@ -74,7 +74,7 @@ inline bool decodeUri(const uint8_t *bytes, size_t length, char *out, size_t cap
   if (totalLength >= capacity || totalLength > kMaxUriLength) return false;
   memcpy(out, prefix, prefixLength);
   memcpy(out + prefixLength, n + 5, restLength);
-  out[totalLength] = '\\0';
+  out[totalLength] = '\0';
   return validUri(out, totalLength);
 }
 } // namespace MakerVaultNdef
