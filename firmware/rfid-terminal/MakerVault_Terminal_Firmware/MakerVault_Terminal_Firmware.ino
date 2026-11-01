@@ -733,6 +733,7 @@ void ndefWriterScreen(){
  }
  detailClear();detailWrapped("Tag: "+ndefTagId,WHITE);
  if(ndefState==1)detailWrapped(ndefError.length()?ndefError:(ndefAutoFlow?"Keep / return same tag":"Present matching NTAG215"),ndefError.length()?AMBER:SILVER);
+ else if(ndefState==9){detailWrapped("Replace existing NFC URL?",AMBER);detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);detailWrapped("Confirm: overwrite",AMBER);detailWrapped("Back: preserve URL",SILVER);}
  else if(ndefState==2){detailWrapped(ndefExistingUrl.length()?"Overwrite existing URL?":"Write new NFC URL?",AMBER);if(ndefExistingUrl.length())detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);}
  else if(ndefState==3)detailWrapped(ndefAutoFlow?"Keep tag in place":"Checking server authorization",SILVER);
  else if(ndefState==4)detailWrapped(ndefAutoFlow?"Keep / return same tag":"Present tag again to write",AMBER);
@@ -1073,7 +1074,12 @@ void processInputs(){
  if(confirmKey.pressed()){
   Serial.println("[BUTTON] CONFIRM");
 #if MAKERVAULT_NDEF_WRITER_ENABLED
-  if(page==NDEF_WRITE){if(ndefState==2)ndefConfirm();else if(ndefState==6||ndefState==7){ndefReset(false);page=MAKERTAGS_MENU;}render();return;}
+  if(page==NDEF_WRITE){
+   if(ndefState==9){ndefForeignUrlOverride=true;ndefState=2;ndefConfirm();}
+   else if(ndefState==2)ndefConfirm();
+   else if(ndefState==6||ndefState==7){ndefReset(false);page=MAKERTAGS_MENU;}
+   render();return;
+  }
 #endif
   if(page==REGISTRATION && (regState==2||regState==6)){regSubmit(regUid,regKind);registrationScreen();return;}
   if(page==REGISTRATION && regState==4){regReset();page=MAKERTAGS_MENU;render();return;}
@@ -1206,6 +1212,18 @@ void pollTag(){
         ndefConfirm();
       } else ndefState=2;
     }
+    else if(decision==MakerVaultNtag215::WRITE_REJECT_FOREIGN_CONTENT){
+      char existingUrl[MakerVaultNdef::kMaxUriLength+1]={};
+      if(MakerVaultNdef::decodeUri(area,sizeof(area),existingUrl,sizeof(existingUrl))){
+       ndefExistingUrl=String(existingUrl);
+       ndefForeignUrlOverride=false;
+       // Do not overwrite until a second, explicit physical Confirm.
+       ndefState=9;
+      }else{
+       ndefError="Unrecognised NFC data; protected";
+       ndefState=7;
+      }
+    }
     else{
       ndefError=decision==MakerVaultNtag215::WRITE_REJECT_FOREIGN_CONTENT
         ?"Existing NDEF needs override"
@@ -1229,7 +1247,7 @@ void pollTag(){
     Serial.println("[NDEF] Wrong UID before write; awaiting original tag");
    }else {
     ndefError="";
-    const auto result=MakerVaultNtag215::writeNdef(io,rfid.uid.uidByte,ndefUid.c_str(),ndefTagId.c_str(),ndefUrl.c_str(),true,true);
+    const auto result=MakerVaultNtag215::writeNdef(io,rfid.uid.uidByte,ndefUid.c_str(),ndefTagId.c_str(),ndefUrl.c_str(),true,true,ndefForeignUrlOverride);
     if(result!=MakerVaultNtag215::RESULT_VERIFIED){ndefError="Write/read-back failed";ndefState=7;}
     else ndefState=8;
    }
@@ -1331,7 +1349,7 @@ void loop(){
    // Registration was physically confirmed; continue the same operation.
    // Exact UID and URL are bound to the freshly created server write grant.
    ndefId=regAutoWriteId;ndefUid=regUid;ndefTagId=regAutoTagId;ndefUrl=regAutoUrl;
-   ndefError="";ndefExistingUrl="";ndefStarted=millis();ndefAutoFlow=true;ndefState=1;
+   ndefError="";ndefExistingUrl="";ndefForeignUrlOverride=false;ndefStarted=millis();ndefAutoFlow=true;ndefState=1;
    regReset();page=NDEF_WRITE;lastPoll=0;render();
  } else if(regState==4 && regAutoWriteId.length()==36 && ndefState!=0) {
    // Never claim success when another unverified NFC operation is active.
