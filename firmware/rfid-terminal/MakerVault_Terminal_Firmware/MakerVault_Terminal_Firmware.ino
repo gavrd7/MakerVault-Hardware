@@ -15,6 +15,7 @@
 #include "terminal_record_browser.h"
 #include "scan_lookup.h"
 #include "cfs_tag_reader.h"
+#include "cfs_material_labels.h"
 #include "cfs_spool_lookup.h"
 #include "remote_lookup.h"
 #include "ntag215_feature_gate.h"
@@ -326,15 +327,26 @@ void scanPage(){
  }
  header(scanMakerTagsMode?"MakerTag scan":"RFID scan");
  if(!scanMakerTagsMode && cfsDetected){
-  centeredAt(34,"CFS material",GREEN);
-  textAt(7,47,(String("ID: ")+cfsMaterial.materialId).c_str(),WHITE);
-  textAt(7,60,(String("Color: #")+cfsMaterial.color).c_str(),SKY);
-  textAt(7,73,(String("Weight: ")+CfsTag::weightLabel(cfsMaterial.weightCode)).c_str(),WHITE);
+  const auto *materialLabel=CfsTag::findMaterialLabel(cfsMaterial.materialId);
+  // Keep the current scan title and leave room for UID, status and rescan footer.
+  if(materialLabel){
+   centeredAt(31,materialLabel->manufacturer,WHITE);
+   String friendly=String(materialLabel->name);
+   if(friendly.length()>19)friendly=friendly.substring(0,18)+"~";
+   centeredAt(44,friendly.c_str(),WHITE);
+  }else{
+   centeredAt(31,"Unknown material",SILVER);
+   centeredAt(44,(String("ID ")+cfsMaterial.materialId).c_str(),WHITE);
+  }
+  // Compact, rounded rectangular swatch on one line, using the tag's actual hex.
+  display->fillRoundRect(42,53,44,11,4,CfsTag::hexRgb565(cfsMaterial.color));
+  display->drawRoundRect(42,53,44,11,4,WHITE);
+  centeredAt(75,(String("#")+cfsMaterial.color).c_str(),SKY);
   if(cfsLookupState==2)
-   textAt(7,86,(String("Spool: ")+cfsLookupSpool).substring(0,19).c_str(),GREEN);
-  else if(cfsLookupState==3)textAt(7,86,"Spool not linked",AMBER);
-  else if(cfsLookupState==4)textAt(7,86,"Lookup unavailable",AMBER);
-  else textAt(7,86,"Checking spool...",SILVER);
+   centeredAt(86,(String("Spool: ")+cfsLookupSpool).substring(0,20).c_str(),GREEN);
+  else if(cfsLookupState==3)centeredAt(86,"Spool not linked",AMBER);
+  else if(cfsLookupState==4)centeredAt(86,"Lookup unavailable",AMBER);
+  else centeredAt(86,"Checking spool...",SILVER);
   textAt(7,97,recentUid.substring(0,19).c_str(),SILVER);
   bottom("Confirm: rescan");return;
  }
