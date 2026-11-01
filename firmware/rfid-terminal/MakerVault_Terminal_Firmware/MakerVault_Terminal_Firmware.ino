@@ -1248,7 +1248,20 @@ void pollTag(){
    }else {
     ndefError="";
     const auto result=MakerVaultNtag215::writeNdef(io,rfid.uid.uidByte,ndefUid.c_str(),ndefTagId.c_str(),ndefUrl.c_str(),true,true,ndefForeignUrlOverride);
-    if(result!=MakerVaultNtag215::RESULT_VERIFIED){ndefError="Write/read-back failed";ndefState=7;}
+    if(result!=MakerVaultNtag215::RESULT_VERIFIED){
+     // Distinguish a refused write from a partially changed tag. Never
+     // automatically retry physical writes after an uncertain result.
+     switch(result){
+      case MakerVaultNtag215::RESULT_READ_FAILED: ndefError="Cannot read tag";break;
+      case MakerVaultNtag215::RESULT_UNSAFE: ndefError="Tag safety check refused";break;
+      case MakerVaultNtag215::RESULT_INVALID_URL: ndefError="Invalid NFC URL";break;
+      case MakerVaultNtag215::RESULT_WRITE_FAILED: ndefError="NFC page write failed";break;
+      case MakerVaultNtag215::RESULT_READBACK_MISMATCH: ndefError="NFC read-back mismatch";break;
+      default: ndefError="Write not verified";break;
+     }
+     Serial.printf("[NDEF] Transaction failed, result=%d; no success recorded\\n",(int)result);
+     ndefState=7;
+    }
     else ndefState=8;
    }
   }
