@@ -6,6 +6,7 @@
 #include <MFRC522.h>
 #include <WiFi.h>
 #include <Fonts/FreeSansBold9pt7b.h>
+#include <Fonts/FreeSansBold18pt7b.h>
 #include "firmware_version.h"
 #include "brand_images.h"
 #include "ui_icons.h"
@@ -835,15 +836,24 @@ void rbLetterScreen(){
  display->fillScreen(BG);
  centeredAt(14,"JUMP TO LETTER",SKY);
  char character[2]={RB_LETTERS[rbLetterIndex],0};
- // centeredAt() uses textAt(), which resets size to 1. Draw explicitly
- // so the large 7x glyph actually reaches the TFT.
+ // Use a proportional, smooth-outline GFX glyph instead of scaling the
+ // original 5x7 bitmap. Fit its measured bounds into the letter area.
  display->setTextWrap(false);
- display->setTextSize(7);
+ display->setFont(&FreeSansBold18pt7b);
  display->setTextColor(WHITE);
+ display->setTextSize(2);
  int16_t x0,y0;uint16_t w,h;
  display->getTextBounds(character,0,0,&x0,&y0,&w,&h);
- display->setCursor((128-(int)w)/2-x0,31-y0);
+ if(w>110 || h>55){
+  display->setTextSize(1);
+  display->getTextBounds(character,0,0,&x0,&y0,&w,&h);
+ }
+ // GFX custom fonts use a baseline; centre the actual ink, not the cursor.
+ const int16_t x=(128-(int)w)/2-x0;
+ const int16_t y=30+(55-(int)h)/2-y0;
+ display->setCursor(x,y);
  display->print(character);
+ display->setFont(NULL);
  display->setTextSize(1);
  centeredAt(90,"Rotate to select",SILVER);
  centeredAt(102,"Confirm to jump",SILVER);
