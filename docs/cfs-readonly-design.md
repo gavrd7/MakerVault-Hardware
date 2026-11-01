@@ -14,7 +14,7 @@ This is a read-only alternative to carrying the separate CFS-RFID ESP32-C6 devic
 - Authenticate sector 1 (blocks 4–6) with factory Key A, then try the reference reader's UID-derived Key A on previously personalised tags. Recheck the same UID after reselecting the tag.
 - Use the fixed AES-128 constants and block decoding from [CFS-RFID-ESP32](https://github.com/gavrd7/CFS-RFID-ESP32) (XIAO ESP32-C6 sketch and AES source), implemented using the ESP32's mbedTLS rather than copying the original AES implementation. No credentials or CFS printer code are reused.
 - Decode the `AB124` signature, five-character material code, six-character colour hex and weight code from the 48-byte sector. Reject malformed/unsupported data instead of displaying it as CFS.
-- Display the decoded material code, colour, weight and spool link state on the TFT. A background **GET** uses the paired MakerVault HTTPS connection and `inventory:read` scope, with the existing endpoint and device-owner permission guards.
+- Display friendly manufacturer/material names when available from the read-only CFS presentation catalogue, plus a compact RGB565 rounded colour swatch, matching hex, UID and spool-link status. Keep the raw ID for unknown materials and never infer a name from an arbitrary tag ID. A background **GET** uses the paired MakerVault HTTPS connection and `inventory:read` scope, with the existing endpoint and device-owner permission guards.
 - The companion server endpoint `/api/device/v1/spools/by-rfid/?uid=...` looks up physical `Spool.rfid_uid`, returning an owner-scoped matched/unmatched response; it never associates by material/colour alone and never creates/changes records.
 
 ### Security boundaries
@@ -31,7 +31,7 @@ If the read fails or the tag is not recognised as CFS, normal generic RFID UID h
 
 ## Physical acceptance required before merging
 
-- [ ] Read a known **unpersonalised** compatible test CFS tag; verify material ID, colour and weight match the dedicated CFS reader.
+- [ ] Read a known **unpersonalised** compatible test CFS tag; verify material ID and exact colour against the dedicated CFS reader. For ID `10437`, verify `eSUN / PLA Basic / #E01B24` and the rounded swatch.
 - [ ] Read a known **personalised/encrypted** compatible CFS tag; confirm computed-key authentication and decrypted sector fields.
 - [ ] Present a generic blank MIFARE Classic tag; ensure it remains UID-only and no false CFS details are shown.
 - [ ] Confirm a correctly linked UID displays the expected MakerVault spool; unlinked UID displays **Spool not linked**.
