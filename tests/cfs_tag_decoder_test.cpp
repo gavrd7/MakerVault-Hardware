@@ -11,7 +11,9 @@ int main() {
   CfsTag::Material m = {};
   assert(CfsTag::parseSector1(data, sizeof(data), m));
   assert(std::strcmp(m.materialId, "01001") == 0);
-  assert(std::strcmp(m.color, "FF0165") == 0);
+  assert(std::strcmp(m.color, "0000FF") == 0);
+  assert(std::strcmp(m.weightCode, "0165") == 0);
+  assert(std::strcmp(CfsTag::weightLabel(m.weightCode), "500 G") == 0);
   assert(std::strcmp(CfsTag::weightLabel("0330"), "1 KG") == 0);
   assert(!CfsTag::parseSector1(data, 47, m));
   data[0]='X'; assert(!CfsTag::parseSector1(data,48,m)); data[0]='A';
