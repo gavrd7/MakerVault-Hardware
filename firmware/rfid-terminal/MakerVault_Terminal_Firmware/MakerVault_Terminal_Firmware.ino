@@ -215,7 +215,7 @@ void detailPaint(const char* title,bool full=true){
   int yy=CONTENT_TOP+(CONTENT_BOTTOM-CONTENT_TOP-thumb)*detailScroll/maxScroll;
   display->fillRoundRect(123,yy,4,thumb,2,SKY);
  }
- bottom(maxScroll?"Turn: scroll  Back":"Back: menu");
+ bottom(page==NDEF_WRITE && ndefState==9 ? "Back        Confirm" : (maxScroll?"Turn: scroll  Back":"Back: menu"));
 }
 void detailMove(int direction,const char* title){
  int visible=(CONTENT_BOTTOM-CONTENT_TOP)/ROW_H;
@@ -733,7 +733,7 @@ void ndefWriterScreen(){
  }
  detailClear();detailWrapped("Tag: "+ndefTagId,WHITE);
  if(ndefState==1)detailWrapped(ndefError.length()?ndefError:(ndefAutoFlow?"Keep / return same tag":"Present matching NTAG215"),ndefError.length()?AMBER:SILVER);
- else if(ndefState==9){detailWrapped("Replace existing NFC URL?",AMBER);detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);detailWrapped("Confirm: overwrite",AMBER);detailWrapped("Back: preserve URL",SILVER);}
+ else if(ndefState==9){detailWrapped("Replace existing NFC URL?",AMBER);detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);}
  else if(ndefState==2){detailWrapped(ndefExistingUrl.length()?"Overwrite existing URL?":"Write new NFC URL?",AMBER);if(ndefExistingUrl.length())detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);}
  else if(ndefState==3)detailWrapped(ndefAutoFlow?"Keep tag in place":"Checking server authorization",SILVER);
  else if(ndefState==4)detailWrapped(ndefAutoFlow?"Keep / return same tag":"Present tag again to write",AMBER);
@@ -741,7 +741,8 @@ void ndefWriterScreen(){
  else if(ndefState==6){detailWrapped(ndefAutoFlow?"MakerTag ready":"Write verified by MakerVault",GREEN);if(ndefAutoFlow)detailWrapped("You may remove tag",SILVER);}
  else if(ndefState==7){if(ndefAutoFlow)detailWrapped("Assigned; NFC incomplete",AMBER);detailWrapped(ndefError,AMBER);}
  else if(ndefState==8)detailWrapped(ndefAutoFlow?"Keep / return same tag":"Present tag to verify",SILVER);
- detailScroll=0;detailPaint("NTAG215 write");
+ if(ndefState!=9)detailScroll=0;
+ detailPaint("NTAG215 write");
 }
 #endif
 // Remote MakerTag target browser and minimal single-letter A-Z jump.
@@ -934,6 +935,7 @@ void move(int dir){
   rbListScreen();return;
  }
 
+ if(page==NDEF_WRITE && ndefState==9){detailMove(dir,"NTAG215 write");return;}
  if(page==MV_STATUS){detailMove(dir,"MakerVault link");return;}
  if(page==MV_TLS_TEST){detailMove(dir,"Test HTTPS");return;}
  if(page==WIFI_STATUS){detailMove(dir,"Wi-Fi status");return;}
