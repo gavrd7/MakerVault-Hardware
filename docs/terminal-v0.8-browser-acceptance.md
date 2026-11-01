@@ -36,8 +36,16 @@
 
 ## Release gates
 
-- [ ] MakerVault backend CI, including terminal browse and device-initiated session tests.
-- [ ] MakerVault-Hardware ESP32-S3 build and portable logic tests.
+- [x] MakerVault backend CI, including terminal browse and device-initiated session tests — passed on backend PR #161 commit `1fbd113` (run 41224168908).
+- [x] MakerVault-Hardware ESP32-S3 build and portable logic tests — passed on firmware commit `f21f61f` (runs 41261103977 and 41261103998).
 - [ ] Staging and physical test evidence recorded without leaking device keys or credentials.
 - [ ] Review large-list latency, connectivity recovery, cancellation, record naming, and access isolation.
 - [ ] Update published user guide, firmware/source release notes, and version before merging. **Do not ship this draft artifact as stable v0.7.**
+
+## Physical testing evidence (reported by maintainer, 2026-11-01)
+
+- **PASS — previously used MakerTag reassignment:** terminal workflow completed, phone NFC URL resolved, and MakerVault UI reflected the new inventory association. This demonstrates the tested overwrite case, **not** all mismatched/foreign/locked-tag security cases. Confirm permanent tag ID retention separately.
+- **PASS — interface usability:** inventory list horizontal title scroll without full-display flicker; selected record preview wraps centred text; large, proportional-font letter picker tested on real hardware and approved.
+- **Still unverified:** blank-tag write, same-target idempotency, cross-account conflicts, locked/unsupported tags, mismatched UID, outdated/unrelated NDEF, offline/cancel/expiry recovery, large catalogues, permission denial, generic RFID read-only handling, and failure feedback.
+
+Do not mark the entire broad checklist items as complete based on these narrower observations. Re-test against disposable staging-only tags; do not use CFS tags with valuable printer data.
