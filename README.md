@@ -1,63 +1,93 @@
 # MakerVault Hardware
 
-Firmware and hardware documentation for [MakerVault](https://github.com/gavrd7/MakerVault).
+**Build, flash and use connected hardware for [MakerVault](https://github.com/gavrd7/MakerVault).** This repository contains open-source firmware, 3D-printable enclosures, hardware assembly instructions, wiring diagrams and practical testing documentation.
 
+The first supported project is the **MakerVault Terminal**: a handheld RFID/NFC reader and MakerTag writer that connects securely to your self-hosted MakerVault installation.
 
-## Related MakerVault repositories
+**Current integration:** MakerVault **v1.4.6** + MakerVault Terminal **v0.8**. The repository contains the v0.8 source; check [Releases](https://github.com/gavrd7/MakerVault-Hardware/releases) for published binaries and source archives.
 
-- **[MakerVault](https://github.com/gavrd7/MakerVault)** — self-hosted application, Docker deployment and releases.
-- **[MakerVault User Guide](https://gavrd7.github.io/MakerVault-docs/)** ([documentation source](https://github.com/gavrd7/MakerVault-docs)) — installation, configuration and usage guides.
-- **[MakerVault-Hardware](https://github.com/gavrd7/MakerVault-Hardware)** — RFID/NFC handheld firmware, wiring, printable enclosure files and future connected hardware.
+## MakerVault Terminal
 
-**Licence:** MakerVault-authored code is licensed under the **GNU Affero General Public License v3 (AGPL-3.0)**, matching the main MakerVault project. See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md). The vendored QRCode implementation retains its original MIT licence.
+A compact, 3D-printable handheld with a 128×128 colour display, rotary encoder, Back and Confirm buttons, and an RFID/NFC reader housed behind the enclosure. It can look up physical tags, browse MakerVault records, and register or reassign MakerTags without needing to start the workflow on a computer.
 
-**Repository status:** Public, with published source releases. Historical security/publication checks remain available in [public-release checklist](PUBLIC_RELEASE_CHECKLIST.md). The project does not provide a production-certified firmware binary.
+### Current capabilities
 
-## RFID/NFC handheld terminal
+| Area | What it does |
+| --- | --- |
+| **Wi-Fi and setup** | Connects to 2.4 GHz Wi-Fi, remembers multiple networks, and offers a temporary access point / QR-assisted phone setup |
+| **Secure connection** | Uses certificate-verified HTTPS, including a trusted local CA where required; supports connection diagnostics and an approved server endpoint |
+| **Pairing and management** | Pairs through MakerVault's eight-digit Connected Devices wizard; uses scoped, revocable credentials and reports device heartbeat |
+| **Read and look up tags** | Scans compatible RFID/NFC UIDs and resolves registered MakerTags through MakerVault |
+| **Create MakerTags on the terminal** | Browse **Inventory, Location, Printed Part, Printer, Project, Reusable Spool and Spool** directly on the handheld |
+| **Browse large inventories** | Uses alphabetically sorted, paged server results, record IDs and a hold-to-open **A–Z letter jump**; no on-screen keyboard or full inventory download |
+| **Assign and reassign** | Assigns a new tag, recognises an existing MakerTag, and preserves its stable `MV-XXXXXXXX` identity on reassignment |
+| **NTAG215 NFC writing** | Writes and verifies the permanent MakerVault HTTPS record URL on supported writable NTAG215 tags |
+| **Protected URL replacement** | Shows an additional **Back / Confirm** prompt before replacing a recognised unrelated HTTP(S) NFC URL; Back leaves it unchanged |
+| **Safety and recovery** | Enforces physical UID matching, tag compatibility/lock checks, server authorisation and expiry; supports cancellation and retry after incomplete writes |
+| **Other RFID tags** | Supports UID-only lookup/assignment for compatible MIFARE Classic 1K tags without modifying their sectors |
 
-**Current firmware:** v0.8 (ESP32-S3 SuperMini, MFRC522 SPI, ST7735S 128×128 TFT, KY-040 encoder and two buttons). The v0.5.1.14 release is the prior stable baseline; acceptance records are retained for historical reference.
+The browser-led **Use MakerVault Terminal** workflow is also supported. Terminal-first registration and browser-led registration are complementary options.
 
-- [Arduino source](firmware/rfid-terminal/MakerVault_Terminal_Firmware/)
-- [Firmware build setup](firmware/rfid-terminal/BUILD.md)
-- [Firmware flashing / troubleshooting](firmware/rfid-terminal/FLASHING.md)
-- [Exact Rev C.3 wiring reference](hardware/rfid-terminal/WIRING.md)
-- [Rev3 hardware BOM](hardware/rfid-terminal/BOM.md)
-- [Rev3 enclosure assembly / CAD](hardware/rfid-terminal/BUILD_GUIDE.md)
-- [Hardware test evidence](firmware/rfid-terminal/ACCEPTANCE_v0.5.1.13.md)
-- [Secure pairing compatibility](firmware/rfid-terminal/PAIRING_COMPATIBILITY.md)
-- [TLS security checks](firmware/rfid-terminal/TLS_SECURITY_ACCEPTANCE_v0.5.1.7.md)
+### A typical on-device workflow
 
-### Available now
+1. Pair the terminal to MakerVault over **trusted HTTPS** and grant the required device scopes and account permissions.
+2. Open **Home → MakerTags → Add MakerTag**.
+3. Choose a record category, browse the list or hold the encoder for the large **A–Z jump**, and review the selected record.
+4. Present the NFC/RFID tag and approve the assignment as prompted.
+5. For a supported writable NTAG215, approve replacement separately if it already holds an unrelated URL, then keep the same tag near the reader until **MakerTag ready** appears.
+6. Scan the completed NTAG215 with a phone to open its stable MakerVault URL. The phone must be able to reach and trust your MakerVault HTTPS endpoint, including any custom port.
 
-2.4 GHz Wi-Fi with multiple saved networks; temporary access point or LAN QR phone setup; certificate-verified MakerVault HTTPS, Local CA management, secure eight-digit pairing-v1, NVS credential persistence and endpoint guard, background heartbeat, TFT navigation, and basic RFID/NFC tag UID scanning.
+For terminal-initiated registration, the paired device requires `inventory:read` and `tags:write` scopes, and the MakerVault user needs permission to view the target record and create/change MakerTags. Other operations require their corresponding scopes.
 
-### Earlier connected MakerTag workflows (v0.6.0)
+## Build your own
 
-When used with MakerVault v1.4.0, this firmware supports read-only MakerTag lookup, browser-initiated UID registration, explicit on-terminal reassignment of existing tags, browser/terminal cancellation, and recovery of interrupted requests. **Firmware v0.6.0 did not implement tag-memory writes, NDEF encoding or Creality CFS payload decoding.** The earlier v0.5.1.14 firmware predates these integrations.
+The current handheld is built around an **ESP32-S3 SuperMini**, **MFRC522/RC522 SPI reader**, **1.44-inch ST7735S 128×128 TFT**, **KY-040 rotary encoder** and **two independent buttons**. The printable enclosure holds the display and controls on the front and the RFID antenna toward the back.
 
-The v0.5.1.14 maintenance update corrected the displayed and heartbeat firmware versions and passed physical regression tests.
+| Start here | Resources |
+| --- | --- |
+| Firmware source | [Arduino sketch folder](firmware/rfid-terminal/MakerVault_Terminal_Firmware/) |
+| Software installation | [Arduino build instructions](firmware/rfid-terminal/BUILD.md) · [Flashing and troubleshooting](firmware/rfid-terminal/FLASHING.md) |
+| Electronics | [Rev C.3 wiring / pin map](hardware/rfid-terminal/WIRING.md) · [Bill of materials](hardware/rfid-terminal/BOM.md) |
+| Printable hardware | [Enclosure CAD and assembly guide](hardware/rfid-terminal/BUILD_GUIDE.md) · [Hardware files](hardware/rfid-terminal/) |
+| Connected setup | [Pairing compatibility](firmware/rfid-terminal/PAIRING_COMPATIBILITY.md) · [MakerVault user guide](https://gavrd7.github.io/MakerVault-docs/) |
+| Tests and safeguards | [v0.8 acceptance checklist](docs/terminal-v0.8-browser-acceptance.md) · [NFC writer safety](docs/ntag215-ndef-writer-safety.md) · [NFC physical acceptance](docs/ntag215-esp32s3-acceptance.md) · [TLS testing](firmware/rfid-terminal/TLS_SECURITY_ACCEPTANCE_v0.5.1.7.md) |
 
-## Other hardware
+**Important:** Use 3.3 V logic and verify wiring for your exact hardware revision. Do not expose the temporary configuration portal to the public internet or disable certificate verification to resolve a connection problem. Physical hardware is maker-built and **not independently safety certified**.
 
-A filament weigh station is planned. Final Rev3 enclosure STL, STEP, 3MF and CAD sources are included in [hardware/rfid-terminal/](hardware/rfid-terminal/).
+## Roadmap
 
-## Responsible distribution
+This is a functional roadmap, not a claim that every future device or feature is already implemented. Completed items reflect the currently tested firmware and application integration.
 
-Do not commit credentials, provisioning logs with secrets, local CA private keys or personal network details. Do not publish before reviewing historical commits and the provenance/licensing of embedded icon and brand images.
+### MakerVault Terminal
 
-**Earlier release:** [Firmware v0.6.0](https://github.com/gavrd7/MakerVault-Hardware/releases) adds online MakerTag UID lookup, registration, confirmed reassignment and cancellation/recovery. Physical tag-memory writes, NDEF encoding and Creality CFS payload writing are not supported. Note: the existing published release tag is `v.0.6.0`; that spelling is preserved here rather than silently changing the Git tag.
+- [x] ESP32-S3 handheld hardware, printable enclosure and assembly references
+- [x] Colour TFT interface with rotary encoder and Back / Confirm controls
+- [x] Multi-network Wi-Fi, local setup portal and QR-assisted provisioning
+- [x] Trusted HTTPS, local CA handling, pairing and background heartbeats
+- [x] RFID/NFC UID reading and online MakerTag resolution
+- [x] Browser-initiated MakerTag registration and reassignment
+- [x] Verified NTAG215 MakerVault URL writing and stable tag identities
+- [x] Standalone MakerTag creation, server-side record paging and A–Z jump
+- [x] Explicit foreign URL overwrite confirmation and cancellation/recovery protection
+- [x] Generic MIFARE Classic UID-only assignment without tag-memory writes
+- [ ] **Read-only Creality CFS tag material decoding** and matching decoded data to MakerVault spool inventory
+- [ ] Further terminal usability and diagnostics improvements as needed
+- [ ] OTA firmware updates (not available in v0.8)
 
+### Other connected hardware
 
-## MakerVault Terminal v0.7 — MakerTags NFC writing
+- [ ] **MakerVault Weigh Station:** ESP32-S3, load cell/HX711, round display, RFID reader and removable 3D-printed weighing platform (planned)
+- [ ] Share reusable device/pairing/record lookup components between terminal and future hardware where practical
 
-Firmware v0.7 pairs with MakerVault v1.4.5. From MakerVault, select a record and **Use MakerVault Terminal**, confirm the generated HTTPS URL (including any port), present an NTAG215 once and confirm on the handheld. The terminal checks UID, tag capability container and lock/protection status, reviews existing content, writes the canonical `/t/MV-XXXXXXXX/` NFC Forum URL, reads back the memory and acknowledges verification to MakerVault. Cancellation and expiry prevent reuse of stale authorisations. Reassignment preserves the stable URL.
+**Deliberately excluded from the Terminal v0.8 scope:** writing Creality CFS material-sector data, changing the printer's material database, or automatic printer sync/push. The planned CFS reader integration is **read-only**.
 
-Generic RFID tags (including Creality CFS MIFARE Classic 1K) use UID association and lookup only; they are not reformatted or written by the NTAG215 workflow. NFC writing is enabled by default in v0.7 (`MAKERVAULT_NDEF_WRITER_ENABLED=1`); use the v0.7 release's designated verified build, not an older read-only binary. HTTPS trust and `tags:write` permission remain mandatory. For safety requirements and verification, see [writer safety](docs/ntag215-ndef-writer-safety.md) and [physical acceptance](docs/ntag215-esp32s3-acceptance.md).
+## Releases, documentation and licensing
 
-## MakerVault Terminal v0.8 — standalone MakerTag creation
+- **[Releases and downloads](https://github.com/gavrd7/MakerVault-Hardware/releases)** — published assets and version-specific notes. The README describes the current source code; a previously published binary may implement fewer features.
+- **[MakerVault application](https://github.com/gavrd7/MakerVault)** — the self-hosted backend/frontend, device management and MakerTag records.
+- **[MakerVault user guide](https://gavrd7.github.io/MakerVault-docs/)** ([source](https://github.com/gavrd7/MakerVault-docs)) — guided setup, pairing and end-user workflows.
+- **[Public release checklist](PUBLIC_RELEASE_CHECKLIST.md)** — distribution/security review notes and historical checks.
 
-Firmware **v0.8.0**, paired with **MakerVault v1.4.6**, adds a terminal-first workflow: **Home → MakerTags → Add MakerTag → [record type] → record list → preview → present tag**. Categories are alphabetic: **Inventory, Location, Printed Part, Printer, Project, Reusable Spool, Spool**. The server returns small alphabetically sorted pages with MakerVault IDs; a long encoder hold opens the **single-letter A–Z jump** picker. The terminal does not download an entire inventory, and no on-screen keyboard is needed.
+MakerVault-authored code is licensed under the **GNU Affero General Public License v3**; see [LICENSE](LICENSE). Bundled third-party components retain their stated licences; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Use a paired, certificate-verified MakerVault v1.4.6 server; grant **inventory:read** and **tags:write** scopes and applicable MakerTag/record permissions. A writable NTAG215 is assigned and written with its stable `/t/MV-XXXXXXXX/` link, with UID, protection and server-authorisation checks plus physical read-back. Existing unrelated **recognisable HTTP(S) NDEF URLs** offer a separate **Back / Confirm** replacement prompt with encoder scrolling: Back leaves the tag untouched; Confirm authorises replacement. Malformed or unrecognised NDEF remains protected. Cancellation, UID mismatch and authorisation expiry fail closed; a cancelled/incomplete operation can be retried without changing the MakerTag ID.
-
-Generic MIFARE Classic 1K tags support **UID-only registration**: their memory is not written. **Creality CFS material decoding, CFS sector writes, and printer database sync are excluded from v0.8**. Use the [v0.8 acceptance checklist](docs/terminal-v0.8-browser-acceptance.md), [firmware source](firmware/rfid-terminal/MakerVault_Terminal_Firmware/) and [build instructions](firmware/rfid-terminal/BUILD.md). The v0.7 section above documents the previous browser-led NFC workflow; v0.8 is the matching firmware for MakerVault v1.4.6.
+Do not commit credentials, local CA private keys, personal network details or unredacted provisioning logs. Historical firmware acceptance records remain in their own files rather than being mixed into this project overview.
