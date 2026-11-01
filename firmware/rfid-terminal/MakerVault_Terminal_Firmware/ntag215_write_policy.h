@@ -74,7 +74,8 @@ inline WriteDecision assess(const MemoryInfo &info, const uint8_t *uid,
                             size_t uidLength, const char *expectedUid,
                             const char *makerTagId, const char *proposedUrl,
                             const uint8_t *existing, size_t existingLength,
-                            bool physicalConfirmed, bool serverAuthorized) {
+                            bool physicalConfirmed, bool serverAuthorized,
+                            bool explicitForeignUrlOverride=false) {
   if (!physicalConfirmed || !serverAuthorized) return WRITE_REJECT_CONFIRMATION;
   if (!info.supported || info.advertisedUserBytes != 496) return WRITE_REJECT_UNSUPPORTED;
   if (!info.writable) return WRITE_REJECT_LOCKED;
@@ -84,7 +85,10 @@ inline WriteDecision assess(const MemoryInfo &info, const uint8_t *uid,
   char previous[MakerVaultNdef::kMaxUriLength + 1] = {0};
   if (!MakerVaultNdef::decodeUri(existing, existingLength, previous, sizeof(previous)))
     return WRITE_REJECT_FOREIGN_CONTENT;
-  if (!hasIdentitySuffix(previous, makerTagId)) return WRITE_REJECT_FOREIGN_CONTENT;
+  // Override only an intelligible URI following a fresh, separate physical
+  // confirmation. Unknown or malformed NDEF always remains protected.
+  if (!hasIdentitySuffix(previous, makerTagId) && !explicitForeignUrlOverride)
+    return WRITE_REJECT_FOREIGN_CONTENT;
   return WRITE_READY;
 }
 // Independently verify what was physically read back after a write.
