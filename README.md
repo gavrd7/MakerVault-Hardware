@@ -81,6 +81,14 @@ This is a functional roadmap, not a claim that every future device or feature is
 
 **Deliberately excluded from the Terminal v0.8 scope:** writing Creality CFS material-sector data, changing the printer's material database, or automatic printer sync/push. The planned CFS reader integration is **read-only**.
 
+## Automatic release downloads
+
+Publishing a GitHub Release with a terminal version tag such as `v0.8.0` starts the [release-asset publishing workflow](.github/workflows/publish-terminal-release.yml). The action compiles the tagged sketch using Arduino-ESP32 3.3.12, packages the application binary and Arduino source, and copies the existing STL and STEP ZIP archives **unchanged** from a previous release containing one of each. It verifies the CAD archives and publishes an SHA-256 checksum list.
+
+Expected assets: `MakerVault-Terminal-v0.8.0-Firmware.zip`, `MakerVault-Terminal-v0.8.0-Arduino-Sketch.zip`, `MakerVault-Terminal-v0.8.0-App.bin`, `MakerVault-Terminal-v0.8.0-STL.zip`, `MakerVault-Terminal-v0.8.0-STEP.zip`, `SHA256SUMS.txt` and `CAD-SOURCE.txt`. No manual attachment is normally needed. **Check the publishing action succeeds and the files appear in the release assets after clicking Publish release**; the assets are uploaded by the workflow, not instantly when you click the button. If the previous CAD assets are missing/ambiguous, the action fails instead of inventing replacement files. The workflow does not silently modify old release assets.
+
+The **App.bin** is intended for application-only updates that preserve NVS, when flashed to the verified board-specific application offset; the firmware ZIP contains separate app, bootloader and partition binaries for appropriately configured installations. **Never erase flash/NVS on an already paired device** unless deliberately resetting it. The source ZIP contains the complete sketch folder and links to external Arduino Library Manager dependencies.
+
 ## Releases, documentation and licensing
 
 - **[Releases and downloads](https://github.com/gavrd7/MakerVault-Hardware/releases)** — published assets and version-specific notes. The README describes the current source code; a previously published binary may implement fewer features.
