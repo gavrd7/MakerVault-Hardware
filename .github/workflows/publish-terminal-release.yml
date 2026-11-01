@@ -1,0 +1,163 @@
+name: Publish MakerVault Terminal release assets
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  publish-terminal:
+    # This action publishes only versioned terminal firmware releases.
+    if: startsWith(github.event.release.tag_name, 'v0.8.')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - name: Validate release source and firmware version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          actual="$(sed -nE 's/^#define MAKERVAULT_FIRMWARE_VERSION "([^"]+)"/\1/p' firmware/rfid-terminal/MakerVault_Terminal_Firmware/firmware_version.h)"
+          test "$version" = "$actual" || { echo "::error::Tag $version does not match firmware version $actual"; exit 1; }
+          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install ESP32-S3 build toolchain
+        run: |
+          set -euo pipefail
+          arduino-cli config init
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.12 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli lib install "Adafruit GFX Library"
+          arduino-cli lib install "Adafruit ST7735 and ST7789 Library"
+          arduino-cli lib install "Adafruit NeoPixel"
+          arduino-cli lib install "MFRC522"
+          arduino-cli lib install "ESP32CertBundle"
+      - name: Compile firmware from the published release tag
+        run: |
+          set -euo pipefail
+          mkdir -p dist/build
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32s3:PartitionScheme=huge_app \
+            --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1" \
+            --output-dir dist/build \
+            firmware/rfid-terminal/MakerVault_Terminal_Firmware
+      - name: Package verified firmware and Arduino sketch
+        run: |
+          set -euo pipefail
+          mkdir -p dist/out dist/firmware dist/source
+          shopt -s nullglob
+          app=(dist/build/*.ino.bin)
+          boot=(dist/build/*.bootloader.bin)
+          parts=(dist/build/*.partitions.bin)
+          test ${#app[@]} -eq 1 || { echo "::error::Expected exactly one compiled application binary"; exit 1; }
+          cp "${app[0]}" "dist/out/MakerVault-Terminal-v${RELEASE_VERSION}-App.bin"
+          cp "${app[0]}" dist/firmware/firmware.bin
+          if [ ${#boot[@]} -eq 1 ] && [ ${#parts[@]} -eq 1 ]; then
+            cp "${boot[0]}" dist/firmware/bootloader.bin
+            cp "${parts[0]}" dist/firmware/partitions.bin
+          else
+            echo "::error::Bootloader or partitions binary missing; refusing incomplete firmware package"
+            exit 1
+          fi
+          cat > dist/firmware/FLASHING.md <<'EOF'
+          # MakerVault Terminal ESP32-S3 firmware
+          
+          This package is for the ESP32-S3 SuperMini with the hardware and
+          Huge APP partition configuration documented in MakerVault-Hardware.
+          Never flash these binaries onto a different board or flash layout.
+          
+          **Existing paired terminal:** Prefer an application-only update using
+          firmware.bin (also released separately as the App.bin asset), with the
+          correct app partition offset for your ESP32-S3 setup. Do NOT erase the
+          chip or NVS: this would erase saved Wi-Fi, local CA and pairing data.
+          
+          **Fresh installation:** bootloader.bin, partitions.bin and firmware.bin
+          are separate binaries, NOT a merged flash image. Use the offsets
+          from your confirmed board configuration. Do not assume offsets from
+          unrelated ESP32 tutorials.
+          
+          See firmware/rfid-terminal/FLASHING.md in the source repository and
+          confirm the wiring/partition settings before flashing.
+          EOF
+          cat > dist/firmware/flash-manifest.txt <<EOF
+          Version: ${RELEASE_VERSION}
+          Board: ESP32-S3 SuperMini (esp32:esp32:esp32s3)
+          Partition option: PartitionScheme=huge_app
+          Arduino ESP32 core: 3.3.12
+          Source commit: ${GITHUB_SHA}
+          Files: firmware.bin (application-only); bootloader.bin; partitions.bin
+          Flash offsets: verify board-specific offsets before flashing; no universal offset assumed
+          EOF
+          (cd dist/firmware && zip -q -r "../out/MakerVault-Terminal-v${RELEASE_VERSION}-Firmware.zip" .)
+          cp -a firmware/rfid-terminal/MakerVault_Terminal_Firmware dist/source/
+          cat > dist/source/README.md <<EOF
+          # MakerVault Terminal ${RELEASE_VERSION} — Arduino source
+          
+          Open MakerVault_Terminal_Firmware/MakerVault_Terminal_Firmware.ino
+          with Arduino IDE 2.x. See the MakerVault-Hardware firmware build guide
+          for Arduino ESP32 core 3.3.12, libraries, Huge APP partition settings,
+          wiring and trusted HTTPS configuration.
+          
+          All sketch-local source files and vendored QRCode sources are included.
+          External Arduino libraries are installed through Arduino Library Manager.
+          EOF
+          (cd dist/source && zip -q -r "../out/MakerVault-Terminal-v${RELEASE_VERSION}-Arduino-Sketch.zip" .)
+      - name: Reuse STL and STEP ZIPs from the most recent matching older release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CURRENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > /tmp/makervault-cad-assets.tsv
+          import json, os, re, urllib.request
+          repo = os.environ["GH_REPO"]
+          req = urllib.request.Request(
+              f"https://api.github.com/repos/{repo}/releases?per_page=100",
+              headers={"Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                       "Accept": "application/vnd.github+json",
+                       "User-Agent": "MakerVault-release-publisher"})
+          with urllib.request.urlopen(req) as response:
+              releases = json.load(response)
+          for release in releases:
+              if release.get("draft") or release["tag_name"] == os.environ["CURRENT_TAG"]:
+                  continue
+              assets = [a["name"] for a in release.get("assets", [])]
+              stl = [a for a in assets if re.search(r"stl", a, re.I) and a.lower().endswith(".zip")]
+              step = [a for a in assets if re.search(r"step|stp", a, re.I) and a.lower().endswith(".zip")]
+              if len(stl) == 1 and len(step) == 1 and stl[0] != step[0]:
+                  print(f"{release['tag_name']}\t{stl[0]}\t{step[0]}")
+                  break
+          else:
+              raise SystemExit("No prior release has exactly one STL ZIP and one STEP ZIP; refusing to publish incomplete assets")
+          PY
+          IFS=$'\t' read -r source_tag stl_asset step_asset < /tmp/makervault-cad-assets.tsv
+          echo "Reusing $stl_asset and $step_asset from $source_tag"
+          mkdir -p dist/cad
+          gh release download "$source_tag" --repo "$GH_REPO" --dir dist/cad \
+            --pattern "$stl_asset" --pattern "$step_asset"
+          test -s "dist/cad/$stl_asset" && test -s "dist/cad/$step_asset"
+          unzip -t "dist/cad/$stl_asset" >/dev/null
+          unzip -t "dist/cad/$step_asset" >/dev/null
+          cp "dist/cad/$stl_asset" "dist/out/MakerVault-Terminal-v${RELEASE_VERSION}-STL.zip"
+          cp "dist/cad/$step_asset" "dist/out/MakerVault-Terminal-v${RELEASE_VERSION}-STEP.zip"
+          printf 'Reused unchanged from release %s:\nSTL: %s\nSTEP: %s\n' \
+            "$source_tag" "$stl_asset" "$step_asset" > dist/out/CAD-SOURCE.txt
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          (cd dist/out && sha256sum *.zip *.bin > SHA256SUMS.txt)
+      - name: Attach files to the published GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          gh release upload "$RELEASE_TAG" dist/out/* --repo "$GH_REPO" --clobber

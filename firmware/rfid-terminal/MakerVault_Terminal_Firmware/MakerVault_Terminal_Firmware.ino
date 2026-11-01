@@ -6,11 +6,13 @@
 #include <MFRC522.h>
 #include <WiFi.h>
 #include <Fonts/FreeSansBold9pt7b.h>
+#include <Fonts/FreeSansBold18pt7b.h>
 #include "firmware_version.h"
 #include "brand_images.h"
 #include "ui_icons.h"
 #include "provisioning.h"
 #include "connected_registration.h"
+#include "terminal_record_browser.h"
 #include "scan_lookup.h"
 #include "remote_lookup.h"
 #include "ntag215_feature_gate.h"
@@ -19,7 +21,7 @@
 #include "connected_ndef_write.h"
 #endif
 
-// MakerVault handheld UI v0.7.0 -- ESP32-S3 SuperMini, Rev C.3
+// MakerVault handheld UI v0.8 development -- ESP32-S3 SuperMini, Rev C.3
 // Shared hardware SPI, read-only RFID, all original GPIO assignments.
 constexpr uint8_t SCK_PIN=12, MOSI_PIN=11, MISO_PIN=13;
 constexpr uint8_t TFT_CS=1, TFT_DC=2, TFT_RST=43;
@@ -36,10 +38,12 @@ constexpr uint16_t BG=0x0843, CARD=0x10C6, NAVY=0x10ED,
   BLUE=0x159F, SKY=0x867F, WHITE=0xFFFF, SILVER=0xCE79,
   MUTED=0x94D2, GREEN=0x464C, AMBER=0xF5A2, LINE=0x296A;
 
-// Write actions remain feature gated until fully implemented. API scope alone
-// never authorises a placeholder to appear as a working device operation.
-constexpr bool MAKERTAG_CREATE_IMPLEMENTED=false, RFID_WRITE_IMPLEMENTED=false;
-enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST,NDEF_WRITE};
+// Development MakerTag creation uses the server-authorised registration/NDEF
+// lifecycle; generic RFID writing remains intentionally unavailable.
+// This feature branch enables the new MakerTag browser for staged hardware
+// testing. The released main-branch v0.7 firmware remains unchanged.
+constexpr bool MAKERTAG_CREATE_IMPLEMENTED=true, RFID_WRITE_IMPLEMENTED=false;
+enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST,NDEF_WRITE,RB_CATEGORIES,RB_LIST,RB_LETTER,RB_PREVIEW};
 Page page=HOME;
 const char* choices[]={"MakerTags","RFID Tags","Connections","System info"};
 int subSelected=0, detailScroll=0, detailCount=0;
@@ -211,7 +215,7 @@ void detailPaint(const char* title,bool full=true){
   int yy=CONTENT_TOP+(CONTENT_BOTTOM-CONTENT_TOP-thumb)*detailScroll/maxScroll;
   display->fillRoundRect(123,yy,4,thumb,2,SKY);
  }
- bottom(maxScroll?"Turn: scroll  Back":"Back: menu");
+ bottom(page==NDEF_WRITE && ndefState==9 ? "Back        Confirm" : (maxScroll?"Turn: scroll  Back":"Back: menu"));
 }
 void detailMove(int direction,const char* title){
  int visible=(CONTENT_BOTTOM-CONTENT_TOP)/ROW_H;
@@ -657,7 +661,20 @@ void regDisplayRecord() {
  bottom("Back: dismiss");
 }
 
+void makerTagSuccessIcon(const char* title,const char* detail){
+ display->fillScreen(BG);header("MakerTags");
+ display->drawCircle(64,56,24,GREEN);
+ display->drawCircle(64,56,23,GREEN);
+ display->drawLine(51,56,61,66,GREEN);
+ display->drawLine(61,66,78,47,GREEN);
+ centeredAt(87,title,GREEN);
+ centeredAt(101,detail,SILVER);
+ bottom("OK: finish");
+}
 void registrationScreen(){
+ if(regState==4){
+  makerTagSuccessIcon("MakerTag assigned","UID linked");return;
+ }
  display->fillScreen(BG);
  header("Assign MakerTag");
  if(regState==1) {
@@ -711,8 +728,13 @@ void registrationScreen(){
 }
 #if MAKERVAULT_NDEF_WRITER_ENABLED
 void ndefWriterScreen(){
+ if(ndefState==6 && ndefAutoFlow){
+  makerTagSuccessIcon("MakerTag ready",ndefTagId.c_str());return;
+ }
  detailClear();detailWrapped("Tag: "+ndefTagId,WHITE);
  if(ndefState==1)detailWrapped(ndefError.length()?ndefError:(ndefAutoFlow?"Keep / return same tag":"Present matching NTAG215"),ndefError.length()?AMBER:SILVER);
+ else if(ndefState==9){detailWrapped("Replace existing NFC URL?",AMBER);detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);}
+ else if(ndefState==10)detailWrapped("Checking authorization...",SKY);
  else if(ndefState==2){detailWrapped(ndefExistingUrl.length()?"Overwrite existing URL?":"Write new NFC URL?",AMBER);if(ndefExistingUrl.length())detailWrapped("Current: "+ndefExistingUrl,SILVER);detailWrapped("New: "+ndefUrl,SILVER);}
  else if(ndefState==3)detailWrapped(ndefAutoFlow?"Keep tag in place":"Checking server authorization",SILVER);
  else if(ndefState==4)detailWrapped(ndefAutoFlow?"Keep / return same tag":"Present tag again to write",AMBER);
@@ -720,9 +742,142 @@ void ndefWriterScreen(){
  else if(ndefState==6){detailWrapped(ndefAutoFlow?"MakerTag ready":"Write verified by MakerVault",GREEN);if(ndefAutoFlow)detailWrapped("You may remove tag",SILVER);}
  else if(ndefState==7){if(ndefAutoFlow)detailWrapped("Assigned; NFC incomplete",AMBER);detailWrapped(ndefError,AMBER);}
  else if(ndefState==8)detailWrapped(ndefAutoFlow?"Keep / return same tag":"Present tag to verify",SILVER);
- detailScroll=0;detailPaint("NTAG215 write");
+ if(ndefState!=9)detailScroll=0;
+ detailPaint("NTAG215 write");
 }
 #endif
+// Remote MakerTag target browser and minimal single-letter A-Z jump.
+// Terminal-initiated sessions hand off to the existing verified NFC writer.
+void rbCategoriesScreen(){
+ display->fillScreen(BG);header("Add MakerTag");
+ int top=rbCategory>2?rbCategory-2:0;
+ if(top>4)top=4;
+ for(int n=0;n<3;n++){
+  int idx=top+n;if(idx>=7)break;
+  int y=34+25*n;
+  display->fillRoundRect(5,y,118,23,4,idx==rbCategory?NAVY:CARD);
+  if(idx==rbCategory)display->fillRoundRect(5,y+3,3,17,1,SKY);
+  String name=RB_NAMES[idx];if(name.length()>19)name=name.substring(0,18)+"~";
+  textAt(12,y+8,name.c_str(),idx==rbCategory?WHITE:SILVER);
+ }
+ bottom("OK: open Back: exit");
+}
+// The selected row scrolls one character at a time, pausing at both ends.
+// Unselected rows remain stationary. Keep the ID line and navigation fixed.
+uint32_t rbMarqueeStart=0;
+uint8_t rbMarqueeRow=255;
+String rbVisibleTitle(const String& label,bool selected,uint8_t row){
+ constexpr int WIDTH_CHARS=18; // 108px within the 120px row
+ if(label.length()<=WIDTH_CHARS)return label;
+ if(!selected)return label.substring(0,WIDTH_CHARS-1)+"~";
+ if(rbMarqueeRow!=row){rbMarqueeRow=row;rbMarqueeStart=millis();}
+ const uint32_t elapsed=millis()-rbMarqueeStart;
+ const int steps=(int)label.length()-WIDTH_CHARS;
+ // 900ms at the start, 190ms per character, 950ms at the end.
+ const uint32_t moving=(uint32_t)steps*190;
+ const uint32_t period=900+moving+950;
+ const uint32_t phase=elapsed%period;
+ const int offset=phase<900?0:phase<900+moving?
+   min(steps,int((phase-900)/190)+1):steps;
+ return label.substring(offset,offset+WIDTH_CHARS);
+}
+// Split a long title into up to three centred display lines. Prefer word
+// boundaries, breaking an exceptionally long word only when necessary.
+uint8_t rbWrapTitle(const String& title,String lines[3]){
+ constexpr int LIMIT=19; // 114px in default 6px font
+ String rest=title;
+ rest.trim();
+ uint8_t count=0;
+ while(rest.length() && count<3){
+  if(rest.length()<=LIMIT){lines[count++]=rest;break;}
+  int cut=LIMIT;
+  while(cut>0 && rest[cut]!=' ')--cut;
+  if(cut<7)cut=LIMIT;
+  lines[count++]=rest.substring(0,cut);
+  rest=rest.substring(cut);
+  rest.trim();
+ }
+ if(rest.length() && count==3 && lines[2].length()>3)
+  lines[2]=lines[2].substring(0,LIMIT-1)+"~";
+ return count;
+}
+void rbListScreen(){
+ display->fillScreen(BG);header(RB_NAMES[rbCategory]);
+ if(rbStatus==1||rbStatus==2){centeredAt(62,"Loading...",SILVER);bottom("Back: categories");return;}
+ if(rbStatus==4){centeredAt(56,rbError.c_str(),AMBER);bottom("Back: categories");return;}
+ if(!rbCount){centeredAt(56,"No records found",SILVER);bottom("Hold dial: A-Z");return;}
+ int top=rbRow>2?rbRow-2:0;
+ if(top>int(rbCount)-3)top=max(0,int(rbCount)-3);
+ for(int n=0;n<3;n++){
+  int idx=top+n;if(idx>=rbCount)break;
+  int y=33+n*25;
+  const bool selected=idx==rbRow;
+  display->fillRoundRect(4,y,120,24,4,selected?NAVY:CARD);
+  String label=rbVisibleTitle(rbRows[idx].label,selected,rbRow);
+  textAt(11,y+3,label.c_str(),selected?WHITE:SILVER);
+  String code=rbRows[idx].code;
+  if(code.isEmpty())code="Ref: "+rbRows[idx].id.substring(0,8);
+  if(code.length()>18)code=code.substring(0,17)+"~";
+  textAt(11,y+14,code.c_str(),MUTED);
+ }
+ bottom("Hold dial: A-Z");
+}
+// Update only the selected row title while it scrolls. Redrawing the whole
+// framebuffer every 190ms visibly flickers the header, ID rows and footer.
+void rbMarqueePaint(){
+ if(rbStatus!=3 || !rbCount || rbRow>=rbCount)return;
+ const String& title=rbRows[rbRow].label;
+ if(title.length()<=18)return;
+ int top=rbRow>2?rbRow-2:0;
+ if(top>int(rbCount)-3)top=max(0,int(rbCount)-3);
+ const int y=33+(int(rbRow)-top)*25;
+ display->fillRect(11,y+3,108,9,NAVY);
+ const String visible=rbVisibleTitle(title,true,rbRow);
+ textAt(11,y+3,visible.c_str(),WHITE);
+}
+void rbLetterScreen(){
+ display->fillScreen(BG);
+ centeredAt(14,"JUMP TO LETTER",SKY);
+ char character[2]={RB_LETTERS[rbLetterIndex],0};
+ // Use a proportional, smooth-outline GFX glyph instead of scaling the
+ // original 5x7 bitmap. Fit its measured bounds into the letter area.
+ display->setTextWrap(false);
+ display->setFont(&FreeSansBold18pt7b);
+ display->setTextColor(WHITE);
+ display->setTextSize(2);
+ int16_t x0,y0;uint16_t w,h;
+ display->getTextBounds(character,0,0,&x0,&y0,&w,&h);
+ if(w>110 || h>55){
+  display->setTextSize(1);
+  display->getTextBounds(character,0,0,&x0,&y0,&w,&h);
+ }
+ // GFX custom fonts use a baseline; centre the actual ink, not the cursor.
+ const int16_t x=(128-(int)w)/2-x0;
+ const int16_t y=30+(55-(int)h)/2-y0;
+ display->setCursor(x,y);
+ display->print(character);
+ display->setFont(NULL);
+ display->setTextSize(1);
+ centeredAt(90,"Rotate to select",SILVER);
+ centeredAt(102,"Confirm to jump",SILVER);
+ bottom("Back: cancel");
+}
+void rbPreviewScreen(){
+ display->fillScreen(BG);header("Selected record");
+ String lines[3];const uint8_t count=rbWrapTitle(rbChosenName,lines);
+ const int start=count==1?49:count==2?42:35;
+ for(uint8_t i=0;i<count;i++)centeredAt(start+i*12,lines[i].c_str(),WHITE);
+ String code=rbChosenCode;
+ if(code.isEmpty())code="Ref: "+rbChosenId.substring(0,8);
+ if(code.length()>19)code=code.substring(0,18)+"~";
+ centeredAt(76,code.c_str(),SKY);
+ if(rbBeginCancel)centeredAt(98,"Cancelling...",AMBER);
+ else if(rbBeginStatus==1||rbBeginStatus==2)centeredAt(98,"Connecting...",SKY);
+ else if(rbBeginStatus==4)centeredAt(98,rbBeginError.c_str(),AMBER);
+ else centeredAt(98,"Assign to this?",SKY);
+ bottom(rbBeginStatus==2?"Back: cancel":"OK: start Back: list");
+}
+
 void render(){
  switch(page){
   case HOME:home();break;
@@ -732,6 +887,10 @@ void render(){
 #if MAKERVAULT_NDEF_WRITER_ENABLED
   case NDEF_WRITE:ndefWriterScreen();break;
 #endif
+  case RB_CATEGORIES:rbCategoriesScreen();break;
+  case RB_LIST:rbListScreen();break;
+  case RB_LETTER:rbLetterScreen();break;
+  case RB_PREVIEW:rbPreviewScreen();break;
   case RECENT: simple("Recent tag","Not available");break;
   case CONTROLS:simple("Control test","Turn / press", "Back exits");break;
   case CONNECTIONS:connections();break;
@@ -758,11 +917,26 @@ void control(const char* event){
  if(page==CONTROLS){display->fillRoundRect(10,102,108,10,2,NAVY);textAt(14,103,event,WHITE);feedbackUntil=millis()+850;}
 }
 int categoryCount(){
- if(page==MAKERTAGS_MENU)return 1+int(MAKERTAG_CREATE_IMPLEMENTED && mvCanWriteTags && mvPairVerified);
+ if(page==MAKERTAGS_MENU)return 1+int(MAKERTAG_CREATE_IMPLEMENTED && mvCanWriteTags && mvCanSearchInventory && mvPairVerified);
  if(page==RFID_MENU)return 1+int(RFID_WRITE_IMPLEMENTED && mvCanWriteTags && mvPairVerified);
  return 1;
 }
 void move(int dir){
+ if(page==RB_CATEGORIES){rbCategory=(rbCategory+7+dir)%7;rbCategoriesScreen();return;}
+ if(page==RB_LETTER){rbLetterIndex=(rbLetterIndex+27+dir)%27;rbLetterScreen();return;}
+ if(page==RB_LIST){
+  if(rbStatus!=3||!rbCount)return;
+  if(dir>0){
+   if(rbRow+1<rbCount)rbRow++;
+   else if(rbMore){rbQueue(rbOffset+rbCount,rbLetter);rbDispatch();}
+  }else{
+   if(rbRow>0)rbRow--;
+   else if(rbOffset>0){rbQueue(max(0,rbOffset-RB_PAGE_SIZE),rbLetter,true);rbDispatch();}
+  }
+  rbListScreen();return;
+ }
+
+ if(page==NDEF_WRITE && ndefState==9){detailMove(dir,"NTAG215 write");return;}
  if(page==MV_STATUS){detailMove(dir,"MakerVault link");return;}
  if(page==MV_TLS_TEST){detailMove(dir,"Test HTTPS");return;}
  if(page==WIFI_STATUS){detailMove(dir,"Wi-Fi status");return;}
@@ -783,9 +957,27 @@ void move(int dir){
  Serial.print("[MENU] ");Serial.println(choices[selected]);
 }
 void choose(){
+ if(page==RB_CATEGORIES){rbQueue(0,"");page=RB_LIST;rbDispatch();render();return;}
+ if(page==RB_LETTER){
+  String letter=String(RB_LETTERS[rbLetterIndex]);
+  rbQueue(0,letter);page=RB_LIST;rbDispatch();render();return;
+ }
+ if(page==RB_PREVIEW){rbBeginSelected();rbPreviewScreen();return;}
+ if(page==RB_LIST){
+  if(rbStatus==3 && rbCount){
+   rbChosenId=rbRows[rbRow].id;rbChosenName=rbRows[rbRow].label;
+   rbChosenCode=rbRows[rbRow].code;page=RB_PREVIEW;render();
+  }
+  return;
+ }
+
  if(page==MAKERTAGS_MENU||page==RFID_MENU){
   if(subSelected==0){scanMakerTagsMode=(page==MAKERTAGS_MENU);page=SCAN;scanResultVisible=false;scanLookupState=0;render();}
   else if(subSelected<categoryCount()){
+   if(page==MAKERTAGS_MENU && subSelected==1 &&
+       mvPairVerified && mvCanWriteTags && mvCanSearchInventory){
+    rbCategory=0;page=RB_CATEGORIES;render();return;
+   }
    unavailableTitle="Operation unavailable";page=UNAVAILABLE;render();
   }
   return;
@@ -826,6 +1018,15 @@ void choose(){
  Serial.print("[MENU] Selected: ");Serial.println(choices[selected]);render();
 }
 void back(){
+ if(page==RB_LETTER){page=RB_LIST;render();return;}
+ if(page==RB_PREVIEW){
+  if(rbBeginStatus==1){rbBeginStatus=0;rbBeginCancel=false;}
+  else if(rbBeginStatus==2){rbBeginCancel=true;rbBeginError="Cancelling...";rbPreviewScreen();return;}
+  rbBeginStatus=0;page=RB_LIST;render();return;
+ }
+ if(page==RB_LIST){rbEpoch++;rbStatus=0;page=RB_CATEGORIES;render();return;}
+ if(page==RB_CATEGORIES){page=MAKERTAGS_MENU;subSelected=0;render();return;}
+
 #if MAKERVAULT_NDEF_WRITER_ENABLED
  if(page==NDEF_WRITE){ndefReset(ndefState!=6);page=MAKERTAGS_MENU;render();return;}
 #endif
@@ -840,6 +1041,9 @@ void back(){
  if(page==WIFI_MENU||page==MV_MENU){page=CONNECTIONS;render();return;}if(page!=HOME){page=HOME;render();}
 }
 void processInputs(){
+ static uint32_t rbPressAt=0;
+ static bool rbHoldUsed=false;
+
  // Only meaningful menu input defers reader setup.
  const int oldSelection=selected; const Page oldPage=page;
  uint8_t ab=(digitalRead(ENC_A)<<1)|digitalRead(ENC_B);
@@ -852,16 +1056,42 @@ void processInputs(){
   Serial.println("[BUTTON] SELECT");
   if(page==KNOWN_WIFI && knownCount && networkSelected<knownCount){
    pendingDeleteSSID=knownSSID[networkSelected];page=DELETE_WIFI;render();
-  }else if(page!=DELETE_WIFI)choose();
+  }else if(page==RB_LIST){rbPressAt=millis();rbHoldUsed=false;}
+  else if(page!=DELETE_WIFI)choose();
+ }
+ // A short knob click selects a record; holding it opens the minimal
+ // large-letter A-Z jump. Do not fire the short-click action first.
+ if(rbPressAt && page==RB_LIST && !selectKey.stable &&
+    !rbHoldUsed && (uint32_t)(millis()-rbPressAt)>=650){
+  rbHoldUsed=true;
+  char current=rbLetter.length()?rbLetter[0]:(rbCount?rbRows[rbRow].label[0]:'A');
+  current=toupper((unsigned char)current);
+  rbLetterIndex=(current>='A'&&current<='Z')?current-'A'+1:0;
+  page=RB_LETTER;render();
+ }
+ if(rbPressAt && selectKey.stable){
+  if(!rbHoldUsed && page==RB_LIST)choose();
+  rbPressAt=0;
  }
  if(backKey.pressed())back();
  if(confirmKey.pressed()){
   Serial.println("[BUTTON] CONFIRM");
 #if MAKERVAULT_NDEF_WRITER_ENABLED
-  if(page==NDEF_WRITE){if(ndefState==2)ndefConfirm();else if(ndefState==6||ndefState==7){ndefReset(false);page=MAKERTAGS_MENU;}render();return;}
+  if(page==NDEF_WRITE){
+   if(ndefState==9){
+    // One physical Confirm approves this overwrite. If an HTTPS task is
+    // already running, queue authorization rather than show another prompt.
+    ndefForeignUrlOverride=true;ndefState=10;
+   }
+   else if(ndefState==2)ndefConfirm();
+   else if(ndefState==6||ndefState==7){ndefReset(false);page=MAKERTAGS_MENU;}
+   render();return;
+  }
 #endif
   if(page==REGISTRATION && (regState==2||regState==6)){regSubmit(regUid,regKind);registrationScreen();return;}
-  if(page==HOME)choose();else if(page==CONTROLS)control("Confirm");
+  if(page==REGISTRATION && regState==4){regReset();page=MAKERTAGS_MENU;render();return;}
+  if(page==RB_CATEGORIES||page==RB_LIST||page==RB_LETTER||page==RB_PREVIEW)choose();
+  else if(page==HOME)choose();else if(page==CONTROLS)control("Confirm");
   else if(page==SCAN){scanResultVisible=false;scanLookupQueued=false;scanLookupState=0;scanPage();}
   else if(page==DELETE_WIFI){
    // Resolve by SSID, not list index, to avoid deleting the wrong network.
@@ -989,6 +1219,18 @@ void pollTag(){
         ndefConfirm();
       } else ndefState=2;
     }
+    else if(decision==MakerVaultNtag215::WRITE_REJECT_FOREIGN_CONTENT){
+      char existingUrl[MakerVaultNdef::kMaxUriLength+1]={};
+      if(MakerVaultNdef::decodeUri(area,sizeof(area),existingUrl,sizeof(existingUrl))){
+       ndefExistingUrl=String(existingUrl);
+       ndefForeignUrlOverride=false;
+       // Do not overwrite until a second, explicit physical Confirm.
+       ndefState=9;
+      }else{
+       ndefError="Unrecognised NFC data; protected";
+       ndefState=7;
+      }
+    }
     else{
       ndefError=decision==MakerVaultNtag215::WRITE_REJECT_FOREIGN_CONTENT
         ?"Existing NDEF needs override"
@@ -1012,8 +1254,21 @@ void pollTag(){
     Serial.println("[NDEF] Wrong UID before write; awaiting original tag");
    }else {
     ndefError="";
-    const auto result=MakerVaultNtag215::writeNdef(io,rfid.uid.uidByte,ndefUid.c_str(),ndefTagId.c_str(),ndefUrl.c_str(),true,true);
-    if(result!=MakerVaultNtag215::RESULT_VERIFIED){ndefError="Write/read-back failed";ndefState=7;}
+    const auto result=MakerVaultNtag215::writeNdef(io,rfid.uid.uidByte,ndefUid.c_str(),ndefTagId.c_str(),ndefUrl.c_str(),true,true,ndefForeignUrlOverride);
+    if(result!=MakerVaultNtag215::RESULT_VERIFIED){
+     // Distinguish a refused write from a partially changed tag. Never
+     // automatically retry physical writes after an uncertain result.
+     switch(result){
+      case MakerVaultNtag215::RESULT_READ_FAILED: ndefError="Cannot read tag";break;
+      case MakerVaultNtag215::RESULT_UNSAFE: ndefError="Tag safety check refused";break;
+      case MakerVaultNtag215::RESULT_INVALID_URL: ndefError="Invalid NFC URL";break;
+      case MakerVaultNtag215::RESULT_WRITE_FAILED: ndefError="NFC page write failed";break;
+      case MakerVaultNtag215::RESULT_READBACK_MISMATCH: ndefError="NFC read-back mismatch";break;
+      default: ndefError="Write not verified";break;
+     }
+     Serial.printf("[NDEF] Transaction failed, result=%d; no success recorded\\n",(int)result);
+     ndefState=7;
+    }
     else ndefState=8;
    }
   }
@@ -1061,6 +1316,34 @@ void setup(){
  Serial.println(String("[SYSTEM] READY v")+MAKERVAULT_FIRMWARE_VERSION);
 }
 void loop(){
+ rbDispatch();rbBeginDispatch();
+ if(rbBeginStatus==3){
+  rbBeginStatus=0;
+  regId=rbBeginId;regTarget=rbChosenName;regRecordCode=rbChosenCode;
+  regLastCheck=millis();regState=1;regError="";
+  if(rbBeginCancel){
+   regCancel();page=RB_LIST;render();
+  }else{
+   page=REGISTRATION;scanResultVisible=false;lastPoll=0;render();
+  }
+ }else if(page==RB_PREVIEW){
+  static uint8_t lastBeginState=255;
+  if(lastBeginState!=rbBeginStatus){
+   lastBeginState=rbBeginStatus;rbPreviewScreen();
+  }
+ }
+
+ if(page==RB_LIST){
+  static uint8_t rbLast=255;
+  static uint32_t lastMarqueePaint=0;
+  if(rbLast!=rbStatus){
+   rbLast=rbStatus;rbListScreen();
+  }else if(rbStatus==3 && rbCount &&
+      (uint32_t)(millis()-lastMarqueePaint)>=190){
+   lastMarqueePaint=millis();
+   rbMarqueePaint();
+  }
+ }
  provisioningLoop();
  mvLoop();mvHeartbeatLoop();
  regScheduleCancel();
@@ -1086,7 +1369,7 @@ void loop(){
    // Registration was physically confirmed; continue the same operation.
    // Exact UID and URL are bound to the freshly created server write grant.
    ndefId=regAutoWriteId;ndefUid=regUid;ndefTagId=regAutoTagId;ndefUrl=regAutoUrl;
-   ndefError="";ndefExistingUrl="";ndefStarted=millis();ndefAutoFlow=true;ndefState=1;
+   ndefError="";ndefExistingUrl="";ndefForeignUrlOverride=false;ndefStarted=millis();ndefAutoFlow=true;ndefState=1;
    regReset();page=NDEF_WRITE;lastPoll=0;render();
  } else if(regState==4 && regAutoWriteId.length()==36 && ndefState!=0) {
    // Never claim success when another unverified NFC operation is active.
@@ -1095,6 +1378,14 @@ void loop(){
                  (unsigned)ndefState);
    regError="NFC busy; finish previous write";
    regState=5;
+ }
+ if(page==NDEF_WRITE && ndefState==10 && !mvTask){
+  ndefState=2;
+  if(!ndefConfirm()){
+   // Do not consume the operator\'s approval merely because another
+   // network operation briefly prevented the status check from starting.
+   if(ndefState==2)ndefState=10;
+  }
  }
  ndefSchedulePoll();
  ndefScheduleWatch();

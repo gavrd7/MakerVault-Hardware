@@ -42,6 +42,9 @@ inline bool encodeUri(const char *uri, uint8_t *out, size_t capacity, size_t &wr
 
 // Only accepts the single uncompressed URI record we emit; rejects unknown
 // TLV or NDEF formats instead of guessing what another writer meant.
+// Decode the NFC Forum single-record URI format, including the standard
+// prefix compression used by phone NFC writers. Keep unrecognised payloads
+// protected, rather than interpreting them as permission to overwrite.
 inline bool decodeUri(const uint8_t *bytes, size_t length, char *out, size_t capacity) {
   if (!bytes || !out || length < 8) return false;
   size_t i = 0;
@@ -51,15 +54,27 @@ inline bool decodeUri(const uint8_t *bytes, size_t length, char *out, size_t cap
   if (ndefLength < 6 || ndefLength >= 0xFF ||
       i + 2 + ndefLength >= length) return false;
   const uint8_t *n = bytes + i + 2;
-  if (n[0] != 0xD1 || n[1] != 1 || n[3] != 0x55 || n[4] != 0x00)
-    return false;
+  // Exactly one short, well-known URI record, with no extra records.
+  if (n[0] != 0xD1 || n[1] != 1 || n[3] != 0x55) return false;
   const size_t payloadLength = n[2];
-  if (ndefLength != payloadLength + 4 || payloadLength < 2) return false;
-  const size_t uriLength = payloadLength - 1;
-  if (capacity <= uriLength || bytes[i + 2 + ndefLength] != 0xFE)
-    return false;
-  memcpy(out, n + 5, uriLength);
-  out[uriLength] = '\0';
-  return validUri(out, uriLength);
+  if (ndefLength != payloadLength + 4 || payloadLength < 2 ||
+      bytes[i + 2 + ndefLength] != 0xFE) return false;
+  const char *prefix = nullptr;
+  switch (n[4]) {
+    case 0x00: prefix = ""; break;
+    case 0x01: prefix = "http://www."; break;
+    case 0x02: prefix = "https://www."; break;
+    case 0x03: prefix = "http://"; break;
+    case 0x04: prefix = "https://"; break;
+    default: return false;
+  }
+  const size_t prefixLength = strlen(prefix);
+  const size_t restLength = payloadLength - 1;
+  const size_t totalLength = prefixLength + restLength;
+  if (totalLength >= capacity || totalLength > kMaxUriLength) return false;
+  memcpy(out, prefix, prefixLength);
+  memcpy(out + prefixLength, n + 5, restLength);
+  out[totalLength] = '\0';
+  return validUri(out, totalLength);
 }
 } // namespace MakerVaultNdef
