@@ -818,12 +818,33 @@ void rbListScreen(){
  }
  bottom("Hold dial: A-Z");
 }
+// Update only the selected row title while it scrolls. Redrawing the whole
+// framebuffer every 190ms visibly flickers the header, ID rows and footer.
+void rbMarqueePaint(){
+ if(rbStatus!=3 || !rbCount || rbRow>=rbCount)return;
+ const String& title=rbRows[rbRow].label;
+ if(title.length()<=18)return;
+ int top=rbRow>2?rbRow-2:0;
+ if(top>int(rbCount)-3)top=max(0,int(rbCount)-3);
+ const int y=33+(int(rbRow)-top)*25;
+ display->fillRect(11,y+3,108,9,NAVY);
+ const String visible=rbVisibleTitle(title,true,rbRow);
+ textAt(11,y+3,visible.c_str(),WHITE);
+}
 void rbLetterScreen(){
  display->fillScreen(BG);
  centeredAt(14,"JUMP TO LETTER",SKY);
  char character[2]={RB_LETTERS[rbLetterIndex],0};
- // 7x native font fills 42x56 pixels between heading and instructions.
- display->setTextSize(7);centeredAt(28,character,WHITE);display->setTextSize(1);
+ // centeredAt() uses textAt(), which resets size to 1. Draw explicitly
+ // so the large 7x glyph actually reaches the TFT.
+ display->setTextWrap(false);
+ display->setTextSize(7);
+ display->setTextColor(WHITE);
+ int16_t x0,y0;uint16_t w,h;
+ display->getTextBounds(character,0,0,&x0,&y0,&w,&h);
+ display->setCursor((128-(int)w)/2-x0,31-y0);
+ display->print(character);
+ display->setTextSize(1);
  centeredAt(90,"Rotate to select",SILVER);
  centeredAt(102,"Confirm to jump",SILVER);
  bottom("Back: cancel");
@@ -1267,10 +1288,12 @@ void loop(){
  if(page==RB_LIST){
   static uint8_t rbLast=255;
   static uint32_t lastMarqueePaint=0;
-  if(rbLast!=rbStatus || (rbStatus==3 && rbCount &&
-      rbRows[rbRow].label.length()>18 &&
-      (uint32_t)(millis()-lastMarqueePaint)>=190)){
-   rbLast=rbStatus;lastMarqueePaint=millis();rbListScreen();
+  if(rbLast!=rbStatus){
+   rbLast=rbStatus;rbListScreen();
+  }else if(rbStatus==3 && rbCount &&
+      (uint32_t)(millis()-lastMarqueePaint)>=190){
+   lastMarqueePaint=millis();
+   rbMarqueePaint();
   }
  }
  provisioningLoop();
