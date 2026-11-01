@@ -1,20 +1,43 @@
-# Creality CFS tag reading — isolated implementation track
+# Creality CFS RFID — read-only MakerVault Terminal integration
 
-**Status:** groundwork only; not yet a firmware feature. This branch introduces a read-only parser for an *already decoded* 48-byte CFS material sector, with native regression coverage. It does **not** yet authenticate or decrypt a physical MIFARE Classic tag or resolve it against MakerVault spool inventory.
+**Development status:** code prepared on [MakerVault-Hardware PR #11](https://github.com/gavrd7/MakerVault-Hardware/pull/11), companion backend on [MakerVault PR #163](https://github.com/gavrd7/MakerVault/pull/163). Neither is released or physically validated. Keep both PRs in draft until the hardware acceptance cases pass.
 
-## Reference and boundaries
+## Purpose
 
-Reference: [CFS-RFID-ESP32](https://github.com/gavrd7/CFS-RFID-ESP32), specifically `performTagRead` and `createKey` in the XIAO ESP32-C6 sketch. It authenticates MIFARE Classic sector 1 (blocks 4–6), optionally decrypts it, and reads sector 2 (blocks 8–10) for printer-type text. The first sector uses the `AB124` prefix; material code, RGB hex and weight code are parsed at offsets 12–16, 18–23, and 24–27 respectively.
+Use the handheld ESP32-S3 Terminal's existing MFRC522 reader to inspect compatible Creality CFS **MIFARE Classic 1K** filament tags, show material information and resolve an existing physical spool **by the scanned UID** against MakerVault inventory.
 
-This code **must not** modify the CFS-RFID-ESP32 project, printer-transfer endpoints, printer material database, or CFS tag sectors. The terminal only reads.
+This is a read-only alternative to carrying the separate CFS-RFID ESP32-C6 device for scans. **It is not a second CFS tag writer or a substitute for printer material database sync.**
 
-## Remaining implementation before it can be called complete
+## Implementation
 
-- Validate licensing and portable AES/key derivation from the CFS reader without copying credentials, printer code or write paths.
-- Implement bounded MIFARE Classic Key A authentication, block reads and conditional decrypt on the ESP32-S3 terminal; always stop crypto/finish the tag session, even on errors.
-- Verify source tag family, physical UID, sector length and parser output; avoid displaying malformed payload as a successful scan.
-- Add a strictly read-only, owner-scoped MakerVault device lookup endpoint matching decoded CFS metadata against physical spool inventory; distinguish matched, ambiguous and unmatched without creating or updating records.
-- Integrate a concise TFT scan view with material, colour and spool matching status. Maintain generic UID-only MakerTag workflow independently.
-- Add native fixtures (blank, encrypted, unknown, malformed and wrong UID) and CI; then perform physical tests with disposable known CFS tags.
+- Normal **Scan RFID Tag** screen: when a compatible MIFARE Classic 1K is selected, attempt a read-only CFS sector inspection. MakerTag registration and NFC writing screens are unchanged.
+- Authenticate sector 1 (blocks 4–6) with factory Key A, then try the reference reader's UID-derived Key A on previously personalised tags. Recheck the same UID after reselecting the tag.
+- Use the fixed AES-128 constants and block decoding from [CFS-RFID-ESP32](https://github.com/gavrd7/CFS-RFID-ESP32) (XIAO ESP32-C6 sketch and AES source), implemented using the ESP32's mbedTLS rather than copying the original AES implementation. No credentials or CFS printer code are reused.
+- Decode the `AB124` signature, five-character material code, six-character colour hex and weight code from the 48-byte sector. Reject malformed/unsupported data instead of displaying it as CFS.
+- Display the decoded material code, colour, weight and spool link state on the TFT. A background **GET** uses the paired MakerVault HTTPS connection and `inventory:read` scope, with the existing endpoint and device-owner permission guards.
+- The companion server endpoint `/api/device/v1/spools/by-rfid/?uid=...` looks up physical `Spool.rfid_uid`, returning an owner-scoped matched/unmatched response; it never associates by material/colour alone and never creates/changes records.
 
-No write commands or printer sync calls are permitted. No automatic database changes.
+### Security boundaries
+
+Only Key A authentication and MIFARE **read** operations are used. No `MIFARE_Write`, CFS-sector writes, printer database reads/writes, printer push/pull, or automatic inventory changes. Server-side matching does not trust the tag as authentication: CFS tag sectors and IDs can be cloned or reprogrammed.
+
+If the read fails or the tag is not recognised as CFS, normal generic RFID UID handling remains available. If the server is unavailable or lacks `inventory:read`, the tag's decoded metadata can still be displayed; the spool is shown as unavailable rather than inventing a match. An existing linked `Spool.rfid_uid` is required for a match. The firmware does not try to pair an unlinked spool automatically.
+
+## Automated checks
+
+- Native CFS parser fixtures: signature, lengths, material/colour, weight codes and invalid payload rejection.
+- Standard ESP32-S3 sketch compilation and existing hardware logic regression suite.
+- Backend tests: owner isolation, valid/invalid UID, matched/unmatched spool, `inventory:read` bearer scope, account view permission and no session-cookie authentication.
+
+## Physical acceptance required before merging
+
+- [ ] Read a known **unpersonalised** compatible test CFS tag; verify material ID, colour and weight match the dedicated CFS reader.
+- [ ] Read a known **personalised/encrypted** compatible CFS tag; confirm computed-key authentication and decrypted sector fields.
+- [ ] Present a generic blank MIFARE Classic tag; ensure it remains UID-only and no false CFS details are shown.
+- [ ] Confirm a correctly linked UID displays the expected MakerVault spool; unlinked UID displays **Spool not linked**.
+- [ ] Confirm a tag belonging to another user's spool never discloses that spool.
+- [ ] Disconnect Wi-Fi / invalidate HTTPS trust; tag reading remains safe and the inventory lookup reports unavailable.
+- [ ] Scan NTAG215 and use MakerTag create/write workflows to confirm no regression.
+- [ ] Confirm no Creality CFS sector has been modified and no printer database sync/push took place.
+
+**No action is required on the user's CFS ESP32-C6 firmware or the printer.**
