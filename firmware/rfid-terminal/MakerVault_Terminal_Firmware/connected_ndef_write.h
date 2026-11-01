@@ -8,6 +8,8 @@ String ndefId="", ndefUid="", ndefTagId="", ndefUrl="", ndefError="", ndefCancel
 volatile uint8_t ndefState=0;
 // True only when the physical Confirm button initiated a combined assignment/write.
 bool ndefAutoFlow=false;
+// Set only by a separate physical confirmation of a recognised foreign URL.
+bool ndefForeignUrlOverride=false;
 // 0 idle; 1 present tag; 2 physical confirm; 3 checking live server;
 // 4 authorized physical write; 5 reporting verification; 6 success; 7 error
 uint32_t ndefLastPoll=0, ndefStarted=0, ndefAuthorizedAt=0, ndefLastStatusPoll=0;
@@ -144,7 +146,8 @@ void ndefReset(bool cancelServer) {
   if(cancelServer && ndefId.length()==36 && ndefState!=6)
     ndefCancelId=ndefId;
   ndefState=0;ndefId="";ndefUid="";ndefTagId="";ndefUrl="";ndefExistingUrl="";
-  ndefError="";ndefStarted=0;ndefAuthorizedAt=0;ndefAutoFlow=false;ndefLastPoll=millis();ndefLastStatusPoll=millis();
+  ndefError="";ndefStarted=0;ndefAuthorizedAt=0;ndefAutoFlow=false;
+  ndefForeignUrlOverride=false;ndefLastPoll=millis();ndefLastStatusPoll=millis();
 }
 
 // Call from loop, never from an HTTPS task. Authorization is short lived,
