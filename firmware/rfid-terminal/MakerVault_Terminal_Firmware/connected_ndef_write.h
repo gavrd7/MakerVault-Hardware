@@ -11,7 +11,8 @@ bool ndefAutoFlow=false;
 // Set only by a separate physical confirmation of a recognised foreign URL.
 bool ndefForeignUrlOverride=false;
 // 0 idle; 1 present tag; 2 physical confirm; 3 checking live server;
-// 4 authorized physical write; 5 reporting verification; 6 success; 7 error
+// 4 authorized physical write; 5 reporting verification; 6 success; 7 error;
+// 9 separate physical confirmation to replace foreign URI
 uint32_t ndefLastPoll=0, ndefStarted=0, ndefAuthorizedAt=0, ndefLastStatusPoll=0;
 volatile bool ndefCancelledFromBrowser=false;
 
@@ -153,7 +154,7 @@ void ndefReset(bool cancelServer) {
 // Call from loop, never from an HTTPS task. Authorization is short lived,
 // including when the tag is removed while awaiting the next presentation.
 void ndefExpireLocal(){
- if(ndefState>=1 && ndefState<=5 &&
+ if(((ndefState>=1 && ndefState<=5) || ndefState==9) &&
     ((uint32_t)(millis()-ndefStarted)>270000UL ||
      (ndefState==4 && (uint32_t)(millis()-ndefAuthorizedAt)>15000UL) ||
      !mvPairVerified || !mvEndpointApproved())){
