@@ -37,7 +37,9 @@ inline bool parseSector1(const uint8_t *data, size_t len, Material &out) {
 inline const char *weightLabel(const char *code) {
   if (!code) return "Unknown";
   if (code[0]=='0' && code[1]=='3' && code[2]=='3' && code[3]=='0' && code[4]=='\0') return "1 KG";
-  if (code[0]=='0' && code[1]=='2' && code[2]=='0' && code[3]=='0' && code[4]=='\0') return "750 G";
+  if (code[0]=='0' && code[1]=='2' && code[2]=='4' && code[3]=='7' && code[4]=='\0') return "750 G";
+  if (code[0]=='0' && code[1]=='1' && code[2]=='9' && code[3]=='8' && code[4]=='\0') return "600 G";
+  if (code[0]=='0' && code[1]=='1' && code[2]=='6' && code[3]=='5' && code[4]=='\0') return "500 G";
   if (code[0]=='0' && code[1]=='0' && code[2]=='8' && code[3]=='2' && code[4]=='\0') return "250 G";
   return "Unknown";
 }
