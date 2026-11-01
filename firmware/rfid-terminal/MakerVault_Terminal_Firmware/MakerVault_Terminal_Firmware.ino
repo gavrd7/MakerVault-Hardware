@@ -1385,7 +1385,7 @@ void loop(){
  regScheduleCancel();
  regScheduleProbe();
  scanLookupDispatch();
- cfsSpoolLookupDispatch();
+ if(page==SCAN && scanResultVisible && cfsDetected)cfsSpoolLookupDispatch();
  regSchedulePoll();
  regCheckStatus();
  regDispatchSubmit();
