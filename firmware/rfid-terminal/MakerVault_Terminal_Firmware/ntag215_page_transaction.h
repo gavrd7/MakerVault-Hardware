@@ -67,7 +67,8 @@ inline bool inspectMemory(PageIO &io, const uint8_t uid[7], MemoryInfo &info) {
 // Verifying after reselecting the physical UID remains the caller's job.
 inline WriteResult writeNdef(PageIO &io, const uint8_t uid[7],
                              const char *expectedUid, const char *tagId,
-                             const char *url, bool confirmed, bool authorized) {
+                             const char *url, bool confirmed, bool authorized,
+                             bool explicitForeignUrlOverride=false) {
   uint8_t encoded[MakerVaultNdef::kMaxEncodedLength] = {};
   size_t written=0;
   if (!MakerVaultNdef::encodeUri(url,encoded,sizeof(encoded),written))
@@ -77,7 +78,7 @@ inline WriteResult writeNdef(PageIO &io, const uint8_t uid[7],
   uint8_t oldData[kUserBytes] = {};
   if (!readNdefArea(io,oldData)) return RESULT_READ_FAILED;
   if (assess(info,uid,7,expectedUid,tagId,url,oldData,sizeof(oldData),
-             confirmed,authorized) != WRITE_READY) return RESULT_UNSAFE;
+             confirmed,authorized,explicitForeignUrlOverride) != WRITE_READY) return RESULT_UNSAFE;
 
   // The length is cleared first and written last, after all payload pages.
   uint8_t first[4] = {encoded[0],0x00,encoded[2],encoded[3]};
