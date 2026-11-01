@@ -325,7 +325,7 @@ void scanPage(){
   centeredAt(92,scanMakerTagsMode?"Present MakerTag":"Present RFID tag",SKY);
   bottom("Back: menu");return;
  }
- header(scanMakerTagsMode?"MakerTag scan":"RFID scan");
+ header(scanMakerTagsMode?"MakerTag scan":(cfsDetected?"CFS material":"RFID scan"));
  if(!scanMakerTagsMode && cfsDetected){
   const auto *materialLabel=CfsTag::findMaterialLabel(cfsMaterial.materialId);
   // Keep the current scan title and leave room for UID, status and rescan footer.
