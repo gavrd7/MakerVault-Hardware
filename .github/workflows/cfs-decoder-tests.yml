@@ -1,0 +1,23 @@
+name: Read-only CFS decoder tests
+
+on:
+  pull_request:
+    paths:
+      - 'firmware/rfid-terminal/MakerVault_Terminal_Firmware/cfs_tag_decoder.h'
+      - 'tests/cfs_tag_decoder_test.cpp'
+      - '.github/workflows/cfs-decoder-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cfs-decoder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run parser fixtures
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror -pedantic tests/cfs_tag_decoder_test.cpp -o /tmp/cfs_decoder_test
+          /tmp/cfs_decoder_test
