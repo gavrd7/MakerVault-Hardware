@@ -758,6 +758,45 @@ void rbCategoriesScreen(){
  }
  bottom("OK: open Back: exit");
 }
+// The selected row scrolls one character at a time, pausing at both ends.
+// Unselected rows remain stationary. Keep the ID line and navigation fixed.
+uint32_t rbMarqueeStart=0;
+uint8_t rbMarqueeRow=255;
+String rbVisibleTitle(const String& label,bool selected,uint8_t row){
+ constexpr int WIDTH_CHARS=18; // 108px within the 120px row
+ if(label.length()<=WIDTH_CHARS)return label;
+ if(!selected)return label.substring(0,WIDTH_CHARS-1)+"~";
+ if(rbMarqueeRow!=row){rbMarqueeRow=row;rbMarqueeStart=millis();}
+ const uint32_t elapsed=millis()-rbMarqueeStart;
+ const int steps=(int)label.length()-WIDTH_CHARS;
+ // 900ms at the start, 190ms per character, 950ms at the end.
+ const uint32_t moving=(uint32_t)steps*190;
+ const uint32_t period=900+moving+950;
+ const uint32_t phase=elapsed%period;
+ const int offset=phase<900?0:phase<900+moving?
+   min(steps,int((phase-900)/190)+1):steps;
+ return label.substring(offset,offset+WIDTH_CHARS);
+}
+// Split a long title into up to three centred display lines. Prefer word
+// boundaries, breaking an exceptionally long word only when necessary.
+uint8_t rbWrapTitle(const String& title,String lines[3]){
+ constexpr int LIMIT=19; // 114px in default 6px font
+ String rest=title;
+ rest.trim();
+ uint8_t count=0;
+ while(rest.length() && count<3){
+  if(rest.length()<=LIMIT){lines[count++]=rest;break;}
+  int cut=LIMIT;
+  while(cut>0 && rest[cut]!=' ')--cut;
+  if(cut<7)cut=LIMIT;
+  lines[count++]=rest.substring(0,cut);
+  rest=rest.substring(cut);
+  rest.trim();
+ }
+ if(rest.length() && count==3 && lines[2].length()>3)
+  lines[2]=lines[2].substring(0,LIMIT-1)+"~";
+ return count;
+}
 void rbListScreen(){
  display->fillScreen(BG);header(RB_NAMES[rbCategory]);
  if(rbStatus==1||rbStatus==2){centeredAt(62,"Loading...",SILVER);bottom("Back: categories");return;}
@@ -768,13 +807,13 @@ void rbListScreen(){
  for(int n=0;n<3;n++){
   int idx=top+n;if(idx>=rbCount)break;
   int y=33+n*25;
-  display->fillRoundRect(4,y,120,24,4,idx==rbRow?NAVY:CARD);
-  String label=rbRows[idx].label;
-  if(label.length()>19)label=label.substring(0,18)+"~";
-  textAt(11,y+3,label.c_str(),idx==rbRow?WHITE:SILVER);
+  const bool selected=idx==rbRow;
+  display->fillRoundRect(4,y,120,24,4,selected?NAVY:CARD);
+  String label=rbVisibleTitle(rbRows[idx].label,selected,rbRow);
+  textAt(11,y+3,label.c_str(),selected?WHITE:SILVER);
   String code=rbRows[idx].code;
   if(code.isEmpty())code="Ref: "+rbRows[idx].id.substring(0,8);
-  if(code.length()>23)code=code.substring(0,22)+"~";
+  if(code.length()>18)code=code.substring(0,17)+"~";
   textAt(11,y+14,code.c_str(),MUTED);
  }
  bottom("Hold dial: A-Z");
@@ -783,26 +822,25 @@ void rbLetterScreen(){
  display->fillScreen(BG);
  centeredAt(14,"JUMP TO LETTER",SKY);
  char character[2]={RB_LETTERS[rbLetterIndex],0};
- display->setTextSize(5);centeredAt(43,character,WHITE);display->setTextSize(1);
+ // 7x native font fills 42x56 pixels between heading and instructions.
+ display->setTextSize(7);centeredAt(28,character,WHITE);display->setTextSize(1);
  centeredAt(90,"Rotate to select",SILVER);
  centeredAt(102,"Confirm to jump",SILVER);
  bottom("Back: cancel");
 }
 void rbPreviewScreen(){
  display->fillScreen(BG);header("Selected record");
- String label=rbChosenName;if(label.length()>19)label=label.substring(0,18)+"~";
- centeredAt(43,label.c_str(),WHITE);
+ String lines[3];const uint8_t count=rbWrapTitle(rbChosenName,lines);
+ const int start=count==1?49:count==2?42:35;
+ for(uint8_t i=0;i<count;i++)centeredAt(start+i*12,lines[i].c_str(),WHITE);
  String code=rbChosenCode;
  if(code.isEmpty())code="Ref: "+rbChosenId.substring(0,8);
- if(code.length()>20)code=code.substring(0,19)+"~";
- centeredAt(60,code.c_str(),SKY);
- if(rbBeginCancel)
-  centeredAt(85,"Cancelling...",AMBER);
- else if(rbBeginStatus==1||rbBeginStatus==2)
-  centeredAt(85,"Connecting...",SKY);
- else if(rbBeginStatus==4)
-  centeredAt(85,rbBeginError.c_str(),AMBER);
- else centeredAt(85,"Assign to this?",SKY);
+ if(code.length()>19)code=code.substring(0,18)+"~";
+ centeredAt(76,code.c_str(),SKY);
+ if(rbBeginCancel)centeredAt(98,"Cancelling...",AMBER);
+ else if(rbBeginStatus==1||rbBeginStatus==2)centeredAt(98,"Connecting...",SKY);
+ else if(rbBeginStatus==4)centeredAt(98,rbBeginError.c_str(),AMBER);
+ else centeredAt(98,"Assign to this?",SKY);
  bottom(rbBeginStatus==2?"Back: cancel":"OK: start Back: list");
 }
 
@@ -1226,7 +1264,15 @@ void loop(){
   }
  }
 
- if(page==RB_LIST){static uint8_t rbLast=255;if(rbLast!=rbStatus){rbLast=rbStatus;rbListScreen();}}
+ if(page==RB_LIST){
+  static uint8_t rbLast=255;
+  static uint32_t lastMarqueePaint=0;
+  if(rbLast!=rbStatus || (rbStatus==3 && rbCount &&
+      rbRows[rbRow].label.length()>18 &&
+      (uint32_t)(millis()-lastMarqueePaint)>=190)){
+   rbLast=rbStatus;lastMarqueePaint=millis();rbListScreen();
+  }
+ }
  provisioningLoop();
  mvLoop();mvHeartbeatLoop();
  regScheduleCancel();
