@@ -327,15 +327,16 @@ void scanPage(){
  }
  header(scanMakerTagsMode?"MakerTag scan":(cfsDetected?"CFS material":"RFID scan"));
  if(!scanMakerTagsMode && cfsDetected){
-  const auto *materialLabel=CfsTag::findMaterialLabel(cfsMaterial.materialId);
-  // Keep the current scan title and leave room for UID, status and rescan footer.
-  if(materialLabel){
-   centeredAt(31,materialLabel->manufacturer,WHITE);
-   String friendly=String(materialLabel->name);
+  // Name comes from MakerVault; offline we display only data decoded from the tag.
+  if(cfsMaterialLookupState==2 && cfsMaterialName.length()){
+   String manufacturer=cfsMaterialManufacturer;
+   if(manufacturer.length()>19)manufacturer=manufacturer.substring(0,18)+"~";
+   centeredAt(31,manufacturer.c_str(),WHITE);
+   String friendly=cfsMaterialName;
    if(friendly.length()>19)friendly=friendly.substring(0,18)+"~";
    centeredAt(44,friendly.c_str(),WHITE);
   }else{
-   centeredAt(31,"Unknown material",SILVER);
+   centeredAt(31,cfsMaterialLookupState==1?"Checking MakerVault...":"Material ID",SILVER);
    centeredAt(44,(String("ID ")+cfsMaterial.materialId).c_str(),WHITE);
   }
   // Compact, rounded rectangular swatch on one line, using the tag's actual hex.
@@ -1122,7 +1123,7 @@ void processInputs(){
   if(page==REGISTRATION && regState==4){regReset();page=MAKERTAGS_MENU;render();return;}
   if(page==RB_CATEGORIES||page==RB_LIST||page==RB_LETTER||page==RB_PREVIEW)choose();
   else if(page==HOME)choose();else if(page==CONTROLS)control("Confirm");
-  else if(page==SCAN){scanResultVisible=false;scanLookupQueued=false;scanLookupState=0;cfsDetected=false;cfsLookupQueued=false;cfsLookupState=0;scanPage();}
+  else if(page==SCAN){scanResultVisible=false;scanLookupQueued=false;scanLookupState=0;cfsDetected=false;cfsLookupQueued=false;cfsLookupState=0;cfsMaterialLookupState=0;scanPage();}
   else if(page==DELETE_WIFI){
    // Resolve by SSID, not list index, to avoid deleting the wrong network.
    for(uint8_t i=0;i<knownCount;i++){
@@ -1340,7 +1341,7 @@ void pollTag(){
  hasScanned=true;scanResultVisible=true;
  if(cfsDetected){
   scanLookupQueued=false;scanLookupState=0;
-  cfsSpoolLookupBegin(recentUid);
+  cfsSpoolLookupBegin(recentUid, String(cfsMaterial.materialId));
  }else{
   cfsLookupQueued=false;cfsLookupState=0;
   scanLookupBegin(recentUid,rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_UL?"nfc":"rfid");
@@ -1451,7 +1452,7 @@ void loop(){
  processInputs();
  if(!readerInitDone && (uint32_t)(millis()-lastInputAt)>1100)readerInit();
  if(readerInitDone)pollTag();
- if(page==SCAN && scanResultVisible){static uint8_t lastScanLookup=255;static uint32_t lastScanPaint=0;if(lastScanLookup!=(cfsDetected?uint8_t(cfsLookupState+10):scanLookupState) || (scanLookupState==2 && millis()-lastScanPaint>4000)){lastScanLookup=cfsDetected?uint8_t(cfsLookupState+10):scanLookupState;lastScanPaint=millis();scanPage();}}
+ if(page==SCAN && scanResultVisible){static uint8_t lastScanLookup=255;static uint32_t lastScanPaint=0;if(lastScanLookup!=(cfsDetected?uint8_t(cfsLookupState+10+cfsMaterialLookupState*5):scanLookupState) || (scanLookupState==2 && millis()-lastScanPaint>4000)){lastScanLookup=cfsDetected?uint8_t(cfsLookupState+10+cfsMaterialLookupState*5):scanLookupState;lastScanPaint=millis();scanPage();}}
  if((uint32_t)(millis()-footerChecked)>250){footerChecked=millis();refreshFooter();
   if(page==MV_PAIR && mvPairState==2){static uint32_t prevSecond=0;uint32_t second=(millis()-mvPairStarted)/1000;if(second!=prevSecond){prevSecond=second;mvPairPage();}}
   if(page==MV_PAIR){
