@@ -22,7 +22,7 @@ void cfsSpoolLookupTask(void *) {
       vTaskDelete(nullptr);
       return;
     }
-    if (materialStatus == 200 && materialResponse.indexOf("\\"found\\": true") >= 0) {
+    if (materialStatus == 200 && materialResponse.indexOf("\"found\": true") >= 0) {
       cfsMaterialManufacturer = mvField(materialResponse, "manufacturer");
       cfsMaterialName = mvField(materialResponse, "name");
       cfsMaterialLookupState = cfsMaterialName.length() ? 2 : 3;
