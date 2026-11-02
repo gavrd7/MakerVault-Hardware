@@ -2,6 +2,8 @@
 // Read-only CFS material-spool association by physical RFID UID.
 // GET only; no tag writes, printer access, or inventory mutations.
 String cfsLookupUid, cfsLookupSpool, cfsLookupError;
+String cfsLookupMaterialId, cfsMaterialName, cfsMaterialManufacturer;
+volatile uint8_t cfsMaterialLookupState = 0; // 0 idle, 1 checking, 2 matched, 3 unknown, 4 unavailable
 volatile uint8_t cfsLookupState = 0; // 0 idle, 1 checking, 2 matched, 3 unmatched, 4 error
 bool cfsLookupQueued = false;
 uint32_t cfsLookupSerial = 0;
@@ -9,6 +11,27 @@ uint32_t cfsLookupSerial = 0;
 void cfsSpoolLookupTask(void *) {
   const uint32_t serial = cfsLookupSerial;
   const String uid = cfsLookupUid;
+  // Resolve the decoded material ID independently of the physical spool UID.
+  // Do not turn a material match into an inventory association.
+  if (cfsLookupMaterialId.length() == 5) {
+    String materialResponse;
+    const int materialStatus = mvHttps("/api/device/v1/cfs/material/?id=" + cfsLookupMaterialId,
+                                      "GET", "", materialResponse, true);
+    if (serial != cfsLookupSerial) {
+      mvTask=nullptr;
+      vTaskDelete(nullptr);
+      return;
+    }
+    if (materialStatus == 200 && materialResponse.indexOf("\\"found\\": true") >= 0) {
+      cfsMaterialManufacturer = mvField(materialResponse, "manufacturer");
+      cfsMaterialName = mvField(materialResponse, "name");
+      cfsMaterialLookupState = cfsMaterialName.length() ? 2 : 3;
+    } else if (materialStatus == 200) {
+      cfsMaterialLookupState = 3;
+    } else {
+      cfsMaterialLookupState = 4;
+    }
+  }
   String response;
   const int status = mvHttps("/api/device/v1/spools/by-rfid/?uid=" + uid,
                              "GET", "", response, true);
@@ -30,9 +53,12 @@ void cfsSpoolLookupTask(void *) {
   mvTask=nullptr;
   vTaskDelete(nullptr);
 }
-void cfsSpoolLookupBegin(const String &uid) {
+void cfsSpoolLookupBegin(const String &uid, const String &materialId) {
   ++cfsLookupSerial;
   cfsLookupUid=uid;
+  cfsLookupMaterialId=materialId;
+  cfsMaterialName=""; cfsMaterialManufacturer="";
+  cfsMaterialLookupState=1;
   cfsLookupSpool="";
   cfsLookupError="";
   cfsLookupState=1;
@@ -44,6 +70,7 @@ void cfsSpoolLookupDispatch() {
     cfsLookupQueued=false;
     cfsLookupError="Lookup unavailable";
     cfsLookupState=4;
+    cfsMaterialLookupState=4;
     return;
   }
   cfsLookupQueued=false;
@@ -52,5 +79,6 @@ void cfsSpoolLookupDispatch() {
     mvTask=nullptr;
     cfsLookupError="Task unavailable";
     cfsLookupState=4;
+    cfsMaterialLookupState=4;
   }
 }
