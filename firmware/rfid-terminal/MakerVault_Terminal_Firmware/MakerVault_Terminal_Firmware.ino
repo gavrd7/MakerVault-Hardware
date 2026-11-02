@@ -16,7 +16,7 @@
 #include "scan_lookup.h"
 #include "cfs_tag_reader.h"
 #include "elegoo_tag_reader.h"
-#include "bambu_tag_decoder.h"
+#include "bambu_tag_reader.h"
 #include "cfs_material_labels.h"
 #include "cfs_spool_lookup.h"
 #include "remote_lookup.h"
@@ -66,6 +66,8 @@ bool scanMakerTagsMode=true;
 // CFS material preview is read-only and shown only in the generic RFID scan.
 bool cfsDetected=false;
 bool elegooDetected=false;
+bool bambuDetected=false;
+BambuTag::Material bambuMaterial={};
 ElegooTag::Material elegooMaterial={};
 CfsTag::Material cfsMaterial={};
 uint8_t versionReg=0;
@@ -329,7 +331,17 @@ void scanPage(){
   centeredAt(92,scanMakerTagsMode?"Present MakerTag":"Present RFID tag",SKY);
   bottom("Back: menu");return;
  }
- header(scanMakerTagsMode?"MakerTag scan":(cfsDetected?"CFS material":elegooDetected?"Elegoo (test)":"RFID scan"));
+ header(scanMakerTagsMode?"MakerTag scan":(cfsDetected?"CFS material":elegooDetected?"Elegoo (test)":bambuDetected?"Bambu (test)":"RFID scan"));
+ if(!scanMakerTagsMode && bambuDetected){
+  centeredAt(35,bambuMaterial.material,WHITE);
+  centeredAt(49,bambuMaterial.detail,WHITE);
+  display->fillRoundRect(42,58,44,11,4,CfsTag::hexRgb565(bambuMaterial.color));
+  display->drawRoundRect(42,58,44,11,4,WHITE);
+  centeredAt(79,(String("#")+bambuMaterial.color).c_str(),SKY);
+  centeredAt(91,(String(bambuMaterial.weightGrams)+"g / "+bambuMaterial.materialId).c_str(),SILVER);
+  centeredAt(103,recentUid.substring(0,19).c_str(),SILVER);
+  bottom("Experimental / UID");return;
+ }
  if(!scanMakerTagsMode && elegooDetected){
   centeredAt(38,(String(elegooMaterial.material)+" "+elegooMaterial.subtype).c_str(),WHITE);
   display->fillRoundRect(42,52,44,11,4,CfsTag::hexRgb565(elegooMaterial.color));
@@ -1327,6 +1339,18 @@ void pollTag(){
  // keep their existing behaviour and never read these CFS sectors.
  cfsDetected=false;
  elegooDetected=false;
+ bambuDetected=false;
+ if(page==SCAN && !scanMakerTagsMode &&
+    rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_1K){
+  BambuTag::Material sample={};
+  if(BambuTag::readDocumentedTag(rfid,sample)){
+   bambuMaterial=sample;
+   bambuDetected=true;
+  }
+  rfid.PCD_StopCrypto1();
+  // A failed experimental authentication can change card selection.
+  // The subsequent CFS read path remains authoritative only on a fresh scan.
+ }
  if(page==SCAN && !scanMakerTagsMode &&
     rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_UL){
   ElegooTag::Material sample={};
@@ -1335,7 +1359,7 @@ void pollTag(){
    elegooDetected=true;
   }
  }
- if(page==SCAN && !scanMakerTagsMode &&
+ if(page==SCAN && !scanMakerTagsMode && !bambuDetected &&
     rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_1K){
   CfsTag::Material decoded={};
   if(CfsTag::readMaterialSector(rfid,decoded)){
@@ -1365,7 +1389,7 @@ void pollTag(){
  if(cfsDetected){
   scanLookupQueued=false;scanLookupState=0;
   cfsSpoolLookupBegin(recentUid, String(cfsMaterial.materialId));
- }else if(elegooDetected){
+ }else if(elegooDetected || bambuDetected){
   // No material or physical spool association from unverified third-party payloads.
   scanLookupQueued=false;scanLookupState=0;cfsLookupQueued=false;cfsLookupState=0;
  }else{
