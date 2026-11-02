@@ -343,11 +343,11 @@ void scanPage(){
   display->drawRoundRect(42,58,44,11,4,WHITE);
   centeredAt(78,(String("#")+cfsMaterial.color).c_str(),SKY);
   if(cfsLookupState==2)
-   centeredAt(86,(String("Spool: ")+cfsLookupSpool).substring(0,20).c_str(),GREEN);
-  else if(cfsLookupState==3)centeredAt(86,"Spool not linked",AMBER);
-  else if(cfsLookupState==4)centeredAt(86,"Lookup unavailable",AMBER);
-  else centeredAt(86,"Checking spool...",SILVER);
-  centeredAt(98,recentUid.substring(0,19).c_str(),SILVER);
+   centeredAt(90,(String("Spool: ")+cfsLookupSpool).substring(0,20).c_str(),GREEN);
+  else if(cfsLookupState==3)centeredAt(90,"Spool not linked",AMBER);
+  else if(cfsLookupState==4)centeredAt(90,"Lookup unavailable",AMBER);
+  else centeredAt(90,"Checking spool...",SILVER);
+  centeredAt(102,recentUid.substring(0,19).c_str(),SILVER);
   bottom("Confirm: rescan");return;
  }
  if(!scanMakerTagsMode && scanLookupState==2){
