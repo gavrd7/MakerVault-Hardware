@@ -2,6 +2,7 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
+#include "screenshot_display.h"
 #include <Adafruit_NeoPixel.h>
 #include <MFRC522.h>
 #include <WiFi.h>
@@ -31,8 +32,8 @@ constexpr uint8_t TFT_CS=1, TFT_DC=2, TFT_RST=43;
 constexpr uint8_t RFID_CS=10, RFID_RST=9;
 constexpr uint8_t ENC_A=4, ENC_B=5, ENC_SW=6;
 constexpr uint8_t BACK_PIN=7, CONFIRM_PIN=8, RGB_PIN=48;
-Adafruit_ST7735 tft(&SPI,TFT_CS,TFT_DC,TFT_RST);
-Adafruit_GFX *display = &tft; // Hardware TFT; no temporary screenshot buffer
+MakerVaultScreenshotDisplay tft(&SPI,TFT_CS,TFT_DC,TFT_RST);
+Adafruit_GFX *display = &tft; // Hardware TFT with optional read-only screenshot mirror
 MFRC522 rfid(RFID_CS,RFID_RST);
 Adafruit_NeoPixel led(1,RGB_PIN,NEO_GRB+NEO_KHZ800);
 
@@ -1365,6 +1366,24 @@ void setup(){
  Serial.println(String("[SYSTEM] READY v")+MAKERVAULT_FIRMWARE_VERSION);
 }
 void loop(){
+#if MAKERVAULT_SCREENSHOT_ENABLED
+ // USB serial screenshot requests only. Non-commands are ignored; do not
+ // block the normal terminal event loop waiting for a serial line.
+ static uint8_t shotCommandIndex=0;
+ static const char command[]="MVSHOT\\n";
+ while(Serial.available()) {
+   const int input=Serial.read();
+   if(input<0)break;
+   if(uint8_t(input)==uint8_t(command[shotCommandIndex])) {
+     shotCommandIndex++;
+     if(shotCommandIndex==sizeof(command)-1){
+       shotCommandIndex=0;
+       tft.screenshotTo(Serial);
+       Serial.flush();
+     }
+   }else shotCommandIndex=(input==command[0])?1:0;
+ }
+#endif
  rbDispatch();rbBeginDispatch();
  if(rbBeginStatus==3){
   rbBeginStatus=0;
