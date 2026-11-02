@@ -1341,17 +1341,6 @@ void pollTag(){
  elegooDetected=false;
  bambuDetected=false;
  if(page==SCAN && !scanMakerTagsMode &&
-    rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_1K){
-  BambuTag::Material sample={};
-  if(BambuTag::readDocumentedTag(rfid,sample)){
-   bambuMaterial=sample;
-   bambuDetected=true;
-  }
-  rfid.PCD_StopCrypto1();
-  // A failed experimental authentication can change card selection.
-  // The subsequent CFS read path remains authoritative only on a fresh scan.
- }
- if(page==SCAN && !scanMakerTagsMode &&
     rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_UL){
   ElegooTag::Material sample={};
   if(ElegooTag::readDocumentedTag(rfid,sample)){
@@ -1359,12 +1348,32 @@ void pollTag(){
    elegooDetected=true;
   }
  }
- if(page==SCAN && !scanMakerTagsMode && !bambuDetected &&
+ if(page==SCAN && !scanMakerTagsMode &&
     rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_1K){
   CfsTag::Material decoded={};
   if(CfsTag::readMaterialSector(rfid,decoded)){
    cfsMaterial=decoded;
    cfsDetected=true;
+  }
+ }
+ if(page==SCAN && !scanMakerTagsMode && !cfsDetected &&
+    rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_1K){
+  rfid.PCD_StopCrypto1();
+  byte atqa[2]={};byte atqaLen=sizeof(atqa);
+  if(rfid.PICC_WakeupA(atqa,&atqaLen)==MFRC522::STATUS_OK &&
+     rfid.PICC_ReadCardSerial()){
+    String fresh="";
+    for(byte j=0;j<rfid.uid.size;j++){
+      if(rfid.uid.uidByte[j]<16)fresh+='0';
+      fresh+=String(rfid.uid.uidByte[j],HEX);
+    }
+    fresh.toUpperCase();
+    if(fresh==uid){
+      BambuTag::Material sample={};
+      if(BambuTag::readDocumentedTag(rfid,sample)){
+        bambuMaterial=sample;bambuDetected=true;
+      }
+    }
   }
  }
  rfid.PICC_HaltA();rfid.PCD_StopCrypto1();
