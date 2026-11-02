@@ -15,6 +15,8 @@
 #include "terminal_record_browser.h"
 #include "scan_lookup.h"
 #include "cfs_tag_reader.h"
+#include "elegoo_tag_reader.h"
+#include "bambu_tag_decoder.h"
 #include "cfs_material_labels.h"
 #include "cfs_spool_lookup.h"
 #include "remote_lookup.h"
@@ -63,6 +65,8 @@ bool scanResultVisible=false, hasScanned=false, knownReader=false;
 bool scanMakerTagsMode=true;
 // CFS material preview is read-only and shown only in the generic RFID scan.
 bool cfsDetected=false;
+bool elegooDetected=false;
+ElegooTag::Material elegooMaterial={};
 CfsTag::Material cfsMaterial={};
 uint8_t versionReg=0;
 String recentUid="", recentType="";
@@ -325,7 +329,17 @@ void scanPage(){
   centeredAt(92,scanMakerTagsMode?"Present MakerTag":"Present RFID tag",SKY);
   bottom("Back: menu");return;
  }
- header(scanMakerTagsMode?"MakerTag scan":(cfsDetected?"CFS material":"RFID scan"));
+ header(scanMakerTagsMode?"MakerTag scan":(cfsDetected?"CFS material":elegooDetected?"Elegoo (test)":"RFID scan"));
+ if(!scanMakerTagsMode && elegooDetected){
+  centeredAt(38,(String(elegooMaterial.material)+" "+elegooMaterial.subtype).c_str(),WHITE);
+  display->fillRoundRect(42,52,44,11,4,CfsTag::hexRgb565(elegooMaterial.color));
+  display->drawRoundRect(42,52,44,11,4,WHITE);
+  centeredAt(73,(String("#")+elegooMaterial.color).c_str(),SKY);
+  centeredAt(88,(String(elegooMaterial.weightGrams)+"g / "+
+             String(elegooMaterial.diameterHundredths/100.0f,2)+"mm").c_str(),SILVER);
+  centeredAt(103,recentUid.substring(0,19).c_str(),SILVER);
+  bottom("Experimental / UID");return;
+ }
  if(!scanMakerTagsMode && cfsDetected){
   // Name comes from MakerVault; offline we display only data decoded from the tag.
   if(cfsMaterialLookupState==2 && cfsMaterialName.length()){
@@ -1312,6 +1326,15 @@ void pollTag(){
  // material sector. MakerTag creation, registration and NTAG215 writing
  // keep their existing behaviour and never read these CFS sectors.
  cfsDetected=false;
+ elegooDetected=false;
+ if(page==SCAN && !scanMakerTagsMode &&
+    rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_UL){
+  ElegooTag::Material sample={};
+  if(ElegooTag::readDocumentedTag(rfid,sample)){
+   elegooMaterial=sample;
+   elegooDetected=true;
+  }
+ }
  if(page==SCAN && !scanMakerTagsMode &&
     rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_1K){
   CfsTag::Material decoded={};
@@ -1342,6 +1365,9 @@ void pollTag(){
  if(cfsDetected){
   scanLookupQueued=false;scanLookupState=0;
   cfsSpoolLookupBegin(recentUid, String(cfsMaterial.materialId));
+ }else if(elegooDetected){
+  // No material or physical spool association from unverified third-party payloads.
+  scanLookupQueued=false;scanLookupState=0;cfsLookupQueued=false;cfsLookupState=0;
  }else{
   cfsLookupQueued=false;cfsLookupState=0;
   scanLookupBegin(recentUid,rfid.PICC_GetType(rfid.uid.sak)==MFRC522::PICC_TYPE_MIFARE_UL?"nfc":"rfid");
