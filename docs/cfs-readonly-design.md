@@ -31,7 +31,7 @@ When connected, the terminal can request a material name and manufacturer by the
 
 Without Wi-Fi or MakerVault connectivity, CFS tag reading remains available. The terminal should show only data decoded directly from the tag (for example the material ID, colour code, weight when decoded, and UID). It must not invent a manufacturer or product name, or rely on an outdated bundled list. Show a compact “Connect to MakerVault for material names” hint when appropriate.
 
-**Implementation status:** the material-ID endpoint and its terminal client are not yet implemented; the current firmware retains its legacy presentation-name list until the replacement has been tested. Do not remove the fallback before the new lookup is functioning.
+**Implementation status:** the material-ID endpoint is now implemented in MakerVault PR #163, and the terminal client requests names over its paired HTTPS connection. The static material-name catalogue has been removed. Physical validation and CI are still required.
 
 ## Automated checks
 
