@@ -1370,7 +1370,7 @@ void loop(){
  // USB serial screenshot requests only. Non-commands are ignored; do not
  // block the normal terminal event loop waiting for a serial line.
  static uint8_t shotCommandIndex=0;
- static const char command[]="MVSHOT\\n";
+ static const char command[]="MVSHOT\n";
  while(Serial.available()) {
    const int input=Serial.read();
    if(input<0)break;
