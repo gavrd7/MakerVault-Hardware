@@ -339,15 +339,15 @@ void scanPage(){
    centeredAt(44,(String("ID ")+cfsMaterial.materialId).c_str(),WHITE);
   }
   // Compact, rounded rectangular swatch on one line, using the tag's actual hex.
-  display->fillRoundRect(42,53,44,11,4,CfsTag::hexRgb565(cfsMaterial.color));
-  display->drawRoundRect(42,53,44,11,4,WHITE);
-  centeredAt(75,(String("#")+cfsMaterial.color).c_str(),SKY);
+  display->fillRoundRect(42,58,44,11,4,CfsTag::hexRgb565(cfsMaterial.color));
+  display->drawRoundRect(42,58,44,11,4,WHITE);
+  centeredAt(78,(String("#")+cfsMaterial.color).c_str(),SKY);
   if(cfsLookupState==2)
    centeredAt(86,(String("Spool: ")+cfsLookupSpool).substring(0,20).c_str(),GREEN);
   else if(cfsLookupState==3)centeredAt(86,"Spool not linked",AMBER);
   else if(cfsLookupState==4)centeredAt(86,"Lookup unavailable",AMBER);
   else centeredAt(86,"Checking spool...",SILVER);
-  textAt(7,97,recentUid.substring(0,19).c_str(),SILVER);
+  centeredAt(98,recentUid.substring(0,19).c_str(),SILVER);
   bottom("Confirm: rescan");return;
  }
  if(!scanMakerTagsMode && scanLookupState==2){
