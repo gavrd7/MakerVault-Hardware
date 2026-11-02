@@ -8,9 +8,10 @@ namespace ElegooTag {
 inline bool readDocumentedTag(MFRC522 &reader, Material &out) {
   if (reader.PICC_GetType(reader.uid.sak) != MFRC522::PICC_TYPE_MIFARE_UL)
     return false;
-  uint8_t bytes[24]={};
+  uint8_t bytes[32]={};
   // Read 4 pages per MIFARE Ultralight command. These overlapping calls
-  // acquire pages 4..11 then 8..11, and 12..15; 24 bytes total.
+  // acquire pages 4..11. Reads overlap safely; the first 22 bytes
+  // are passed to the conservative decoder.
   for (uint8_t page=4;page<=8;page+=4) {
     uint8_t response[18]={};
     byte length=sizeof(response);
