@@ -336,7 +336,7 @@ void scanPage(){
    if(friendly.length()>19)friendly=friendly.substring(0,18)+"~";
    centeredAt(44,friendly.c_str(),WHITE);
   }else{
-   centeredAt(31,cfsMaterialLookupState==1?"Checking MakerVault...":"Material ID",SILVER);
+   centeredAt(31,cfsMaterialLookupState==1?"Checking server...":cfsMaterialLookupState==4?"Connect for name":"Unknown material",SILVER);
    centeredAt(44,(String("ID ")+cfsMaterial.materialId).c_str(),WHITE);
   }
   // Compact, rounded rectangular swatch on one line, using the tag's actual hex.
