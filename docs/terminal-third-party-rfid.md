@@ -5,10 +5,10 @@ MakerVault Terminal v1.0 reads supported tags without writing or changing their 
 | Format | Hardware / access | Status | Offline information |
 | --- | --- | --- | --- |
 | Creality CFS | Compatible MIFARE Classic tags; read-only sector decoder | Hardware-tested with known CFS tags | UID, material code, HEX colour and swatch, and any other validated decoded fields |
-| Bambu Lab | MIFARE Classic 1K; protected sector authentication and community-described keys | Experimental research; physical decode not yet validated | UID/basic tag classification unless authenticated data is actually read |
-| Elegoo | Published NTAG213-based formats; variants differ | Experimental research; physical decode not yet validated | UID/basic tag classification unless a supported payload is actually decoded |
+| Bambu Lab | MIFARE Classic 1K; protected sector authentication and community-described keys | Isolated software parser and synthetic fixture tests; authenticated RFID read not yet integrated or hardware-validated | UID/basic tag classification unless authenticated data is actually read |
+| Elegoo | Published NTAG213-based formats; variants differ | Isolated software parser and synthetic fixture tests; NTAG page read not yet integrated or hardware-validated | UID/basic tag classification unless a supported payload is actually decoded |
 
-Bambu Lab community format research: https://github.com/NickWaterton/Bambu-Lab-RFID-Tag-Guide and https://github.com/cwiegert/rfid/blob/main/docs/BambuLabRfid.md.
+**Implementation status:** `bambu_tag_decoder.h` parses already-authenticated MIFARE Classic block data. `elegoo_tag_decoder.h` parses a conservative documented plain-ASCII field sequence only. Neither parser is yet connected to the live terminal scanning flow. The Elegoo guide contains inconsistent example material encodings and payload lengths; a real tag/page dump is required before claiming end-to-end decoding. Both modules have synthetic positive and negative fixtures in `tests/third_party_tag_decoder_test.cpp`.\n\nBambu Lab community format research: https://github.com/NickWaterton/Bambu-Lab-RFID-Tag-Guide and https://github.com/cwiegert/rfid/blob/main/docs/BambuLabRfid.md.
 
 Elegoo manufacturer documentation: https://github.com/elegooofficial/ELEGOO-RFID-Tag-Guide. Real-world examples differ in their layout; verify the actual tag before decoding colour, material or weight.
 
