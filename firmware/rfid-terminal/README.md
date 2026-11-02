@@ -1,19 +1,28 @@
-# MakerVault RFID/NFC handheld terminal
+# MakerVault Terminal — RFID/NFC handheld
 
-**Current firmware: v0.6.0.** The source is in [MakerVault_Terminal_Firmware](MakerVault_Terminal_Firmware/); this replaces the obsolete v0.4.0 experimental README.
+**Firmware source: v1.0 release candidate**, designed for **MakerVault v1.5.0**. Published downloads may be older: check [Releases](https://github.com/gavrd7/MakerVault-Hardware/releases).
 
-- [Build and validated wiring](BUILD.md)
-- [Hardware acceptance](ACCEPTANCE_v0.5.1.13.md)
-- [Pairing protocol](PAIRING_COMPATIBILITY.md)
-- [TLS testing](TLS_SECURITY_ACCEPTANCE_v0.5.1.7.md)
-- [Third-party QRCode MIT licence](third_party/QRCode-LICENSE.txt)
+The ESP32-S3 handheld provides MakerTag scanning, creation and reassignment; NTAG215 URL writing with explicit overwrite protection; general RFID UID reading; online inventory browsing with A–Z jump; secure MakerVault pairing, heartbeats and certificate-verified HTTPS; and experimental read-only filament RFID decoding.
 
-Use Arduino ESP32S3 Dev Module, core 3.x and a suitable Huge APP partition. The QRCode C files are included in the sketch folder; do not need to be copied manually. Preserve NVS during ordinary updates.
+## Getting started
 
-Current capabilities: Wi-Fi provisioning, secure MakerVault pairing, Local CA management, HTTP/TLS diagnostics, background heartbeat, permission status, UID reading, TFT/encoder controls.
+1. [Build, wiring and assembly](BUILD.md) and [flashing instructions](FLASHING.md).
+2. Pair using MakerVault **Settings → Connected Devices**, over verified HTTPS. Grant permissions appropriate to the intended actions.
+3. Use **MakerTags → Add MakerTag** for terminal-first assignment, or use browser-led **Use MakerVault Terminal** flows.
+4. Scan compatible Creality CFS filament tags under generic **Scan RFID Tag**. The terminal reads colour and material ID locally and, when connected, resolves product details against MakerVault's cached printer material database.
+5. To identify a particular physical spool, use its **RFID identity** setting in MakerVault. **Scan using terminal** fills the UID field, which must then be saved explicitly.
 
-In the draft connected-terminal branch, online UID lookup and browser-initiated MakerTag registration/reassignment have been physically tested with staging PR #150, including two-way cancellation and browser session recovery. Existing tag identity is retained during reassignment; tag memory is not written. **Still unavailable:** NDEF and RFID block writing, Creality CFS payload decoding. Final Arduino compilation after the folder rename remains required.
+## Offline and experimental support
 
-**Security:** Configuration and API requests to MakerVault must use verified HTTPS; the terminal's temporary phone setup portal is local HTTP only, intended for a trusted LAN/AP. NVS persistence should not be described as encrypted at rest. The terminal-side Forget pairing does not revoke the server-side key.
+The terminal can still read compatible tag UIDs and decoded CFS material IDs and colours offline. Full material names, manufacturer names and inventory spool associations require a trusted MakerVault connection. An unknown material is shown by its identifier; no product or spool is invented.
 
-**v0.6.0:** `MakerVault_Terminal_Firmware` supports connected Maker Tag lookup, registration, reassignment, and cancellation with MakerVault v1.4.0. Earlier v0.5.1.14 acceptance and maintenance documentation is retained as historical evidence. Tag-memory/NDEF/CFS writing is not included.
+**Bambu Lab and Elegoo** filament tag support is experimental and limited by the specific RFID technology, accessible memory, and publicly documented fields. They are not guaranteed to decode on every tag. The terminal does not write third-party filament material tags. See [third-party RFID limitations](../../docs/terminal-third-party-rfid.md).
+
+## Reference
+
+- [Pairing and compatibility](PAIRING_COMPATIBILITY.md)
+- [TLS security acceptance](TLS_SECURITY_ACCEPTANCE_v0.5.1.7.md)
+- [CFS read-only design and physical tests](../../docs/cfs-readonly-design.md)
+- [Hardware project overview](../../README.md)
+
+**Important:** Never erase NVS during a normal update of a paired terminal. Use the board configuration and Arduino-ESP32 version documented in the build instructions. Always validate new firmware on real hardware before publishing a v1.0 release.
