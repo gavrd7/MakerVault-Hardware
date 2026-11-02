@@ -23,6 +23,16 @@ Only Key A authentication and MIFARE **read** operations are used. No `MIFARE_Wr
 
 If the read fails or the tag is not recognised as CFS, normal generic RFID UID handling remains available. If the server is unavailable or lacks `inventory:read`, the tag's decoded metadata can still be displayed; the spool is shown as unavailable rather than inventing a match. An existing linked `Spool.rfid_uid` is required for a match. The firmware does not try to pair an unlinked spool automatically.
 
+## Online material names and offline behaviour
+
+**Full CFS material lookup requires a Wi-Fi connection and a paired, reachable MakerVault server with a successfully synchronised printer material database.**
+
+When connected, the terminal can request a material name and manufacturer by the five-character CFS material ID. This is a read-only lookup; a material-name match must never create or assign a physical spool. Physical spool matching still requires a separate, owner-scoped RFID UID match.
+
+Without Wi-Fi or MakerVault connectivity, CFS tag reading remains available. The terminal should show only data decoded directly from the tag (for example the material ID, colour code, weight when decoded, and UID). It must not invent a manufacturer or product name, or rely on an outdated bundled list. Show a compact “Connect to MakerVault for material names” hint when appropriate.
+
+**Implementation status:** the material-ID endpoint and its terminal client are not yet implemented; the current firmware retains its legacy presentation-name list until the replacement has been tested. Do not remove the fallback before the new lookup is functioning.
+
 ## Automated checks
 
 - Native CFS parser fixtures: signature, lengths, material/colour, weight codes and invalid payload rejection.
