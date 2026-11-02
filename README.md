@@ -4,7 +4,7 @@
 
 The first supported project is the **MakerVault Terminal**: a handheld RFID/NFC reader and MakerTag writer that connects securely to your self-hosted MakerVault installation.
 
-**Current source:** MakerVault **v1.5.0** + MakerVault Terminal **v1.0 release candidate**. These are source versions under final verification; see [Releases](https://github.com/gavrd7/MakerVault-Hardware/releases) for published builds.
+**Current source:** MakerVault **v1.5.0** + MakerVault Terminal **v1.0.0** (release preparation; check published Releases). These are source versions under final verification; see [Releases](https://github.com/gavrd7/MakerVault-Hardware/releases) for published builds.
 
 ## MakerVault Terminal
 
@@ -28,7 +28,7 @@ A compact, 3D-printable handheld with a 128×128 colour display, rotary encoder,
 
 The browser-led **Use MakerVault Terminal** workflow is also supported. Terminal-first registration and browser-led registration are complementary options.
 
-### Filament RFID reading\n\nThe terminal reads compatible **Creality CFS** material tags, shows the material ID and the tag's actual HEX colour/swatch, and uses a paired MakerVault server to resolve the manufacturer's name and material product from a synchronised read-only printer material database. A physical spool is identified **only by its separately linked RFID UID**; matching a product name or colour never silently assigns a spool. From the MakerVault spool's **Physical Identity** window, choose **Scan using terminal** to capture its UID, then explicitly save the link.\n\n**Offline:** the tag's UID, decoded material ID and colour remain available without Wi-Fi; complete product names and linked spool details require MakerVault.\n\n**Other manufacturers:** Bambu Lab and Elegoo are experimental compatibility targets. Their supported tag families and accessible information vary; unrecognised or protected tags fall back to safe basic reading. No third-party filament tag rewriting is supported. See [third-party RFID limitations](docs/terminal-third-party-rfid.md).\n\n### A typical on-device workflow
+### Filament RFID reading\n\nThe terminal reads compatible **Creality CFS** material tags, shows the material ID and the tag's actual HEX colour/swatch, and uses a paired MakerVault server to resolve the manufacturer's name and material product from a synchronised read-only printer material database. A physical spool is identified **only by its separately linked RFID UID**; matching a product name or colour never silently assigns a spool. From the MakerVault spool's **Physical Identity** window, choose **Scan using terminal** to capture its UID, then explicitly save the link.\n\n**Offline:** the tag's UID, decoded material ID and colour remain available without Wi-Fi; complete product names and linked spool details require MakerVault.\n\n**Other manufacturers:** Bambu Lab and Elegoo have experimental read-only reader paths, based on documented MIFARE Classic and NTAG data. Both are software-validated only; neither has been tested with a genuine manufacturer tag. Protected, unknown or unsupported tags fall back to generic UID reading. No third-party filament tag rewriting is supported. See [third-party RFID limitations](docs/terminal-third-party-rfid.md).\n\n### A typical on-device workflow
 
 1. Pair the terminal to MakerVault over **trusted HTTPS** and grant the required device scopes and account permissions.
 2. Open **Home → MakerTags → Add MakerTag**.
@@ -70,7 +70,7 @@ This is a functional roadmap, not a claim that every future device or feature is
 - [x] Standalone MakerTag creation, server-side record paging and A–Z jump
 - [x] Explicit foreign URL overwrite confirmation and cancellation/recovery protection
 - [x] Generic MIFARE Classic UID-only assignment without tag-memory writes
-- [x] **Read-only Creality CFS tag material decoding** with online material-name and physical spool UID lookup\n- [ ] Experimental Bambu Lab and Elegoo decoding, contingent on readable tag data and physical validation
+- [x] **Read-only Creality CFS tag material decoding** with online material-name and physical spool UID lookup\n- [x] Experimental Bambu Lab and Elegoo read-only decoding paths with synthetic software fixtures (not hardware-validated)
 - [ ] Further terminal usability and diagnostics improvements as needed
 - [ ] OTA firmware updates (not available in v0.8)
 
