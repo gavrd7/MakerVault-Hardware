@@ -1186,10 +1186,10 @@ void choose(){
   else if(mvSelected==1){
    // Avoid interrupting a physical NFC clean, registration or browser handoff.
    bool busyTag=(regState==1||regState==2||regState==4||regState==6||
-                  ndefState==1||ndefState==2||ndefState==4||ndefState==8||
                   remoteLookupState==1||remoteLookupState==2);
 #if MAKERVAULT_NDEF_WRITER_ENABLED
-   busyTag=busyTag||(opState!=0 && opState!=9 && opState!=10);
+   busyTag=busyTag||(ndefState==1||ndefState==2||ndefState==4||ndefState==8||
+                     (opState!=0 && opState!=9 && opState!=10));
 #endif
    if(!busyTag && mvReconnectServer()){
     // Existing WiFiMulti fallback handles stored networks if reconnect()
