@@ -959,44 +959,88 @@ void makerTagsMenuScreen(){
  for(int i=0;i<categoryCount();++i)makerTagRow(i);
  bottom("OK: open Back: home");
 }
+// Bound operation messages to the 128px display. The standard 6px font
+// fits at most 19 characters in the 116px safe content width. Prefer
+// word boundaries and use an ellipsis only when two rows cannot hold text.
+String opFitLine(const String &value, int maxPixels=116){
+ String result=value;
+ int16_t x,y;uint16_t width,height;
+ display->getTextBounds(result.c_str(),0,0,&x,&y,&width,&height);
+ while(result.length() && width>maxPixels-12){
+   result.remove(result.length()-1);
+   display->getTextBounds(result.c_str(),0,0,&x,&y,&width,&height);
+ }
+ if(result.length()!=value.length())result+="..";
+ return result;
+}
+void opCenteredText(const String &value,int y,uint16_t color){
+ const String fit=opFitLine(value);
+ centeredAt(y,fit.c_str(),color);
+}
+void opTwoLine(const String &value,int y,uint16_t color){
+ int16_t x,yy;uint16_t width,height;
+ display->getTextBounds(value.c_str(),0,0,&x,&yy,&width,&height);
+ if(width<=116){centeredAt(y,value.c_str(),color);return;}
+ int split=-1;
+ // Find the last whole-word break that fits the first row.
+ for(int i=0;i<(int)value.length();++i){
+   if(value[i]!=' ')continue;
+   const String first=value.substring(0,i);
+   display->getTextBounds(first.c_str(),0,0,&x,&yy,&width,&height);
+   if(width<=116)split=i;
+ }
+ if(split<0){
+   // Long unbroken identifiers can still wrap without clipping.
+   for(int i=1;i<(int)value.length();++i){
+     const String first=value.substring(0,i);
+     display->getTextBounds(first.c_str(),0,0,&x,&yy,&width,&height);
+     if(width<=116)split=i;
+   }
+ }
+ if(split<=0){opCenteredText(value,y,color);return;}
+ opCenteredText(value.substring(0,split),y,color);
+ String tail=value.substring(split);
+ tail.trim();
+ if(tail.length())opCenteredText(tail,y+13,color);
+}
 void makerTagOperationScreen(){
  display->fillScreen(BG);
  header(opAction=="clean"?"Clean MakerTag":"Remove MakerTag");
  if(opState==11){
-  centeredAt(37,"Also clear NFC data?",WHITE);
-  centeredAt(61,opAlsoClean?"> Yes - clean NFC":"  Yes - clean NFC",opAlsoClean?SKY:SILVER);
-  centeredAt(80,!opAlsoClean?"> No - keep NFC":"  No - keep NFC",!opAlsoClean?SKY:SILVER);
-  bottom("OK: select Back: cancel");
+  centeredAt(39,"Clean NFC too?",WHITE);
+  centeredAt(64,opAlsoClean?"> Yes - clean NFC":"  Yes - clean NFC",opAlsoClean?SKY:SILVER);
+  centeredAt(84,!opAlsoClean?"> No - keep NFC":"  No - keep NFC",!opAlsoClean?SKY:SILVER);
+  bottom("OK: select  Back: no");
  }else if(opState==1){
-  centeredAt(42,"Present MakerTag",SKY);
-  if(opUid.length())centeredAt(64,opUid.substring(0,17).c_str(),WHITE);
-  if(opError.length())centeredAt(88,opError.substring(0,20).c_str(),AMBER);
+  centeredAt(41,"Present MakerTag",SKY);
+  if(opUid.length())opCenteredText(opUid,62,WHITE);
+  if(opError.length())opTwoLine(opError,82,AMBER);
   bottom("Back: cancel");
  }else if(opState==2){
-  centeredAt(33,opMakerId.c_str(),SKY);
-  centeredAt(50,opLabel.substring(0,21).c_str(),WHITE);
-  centeredAt(74,opAlsoClean?"Clean NFC data?":"Remove registration?",AMBER);
-  if(opAction=="remove" && opAlsoClean)centeredAt(90,"Then remove registration",SILVER);
-  bottom("OK: confirm Back: no");
+  opCenteredText(opMakerId,33,SKY);
+  opTwoLine(opLabel,47,WHITE);
+  centeredAt(79,opAlsoClean?"Clean NFC data?":"Remove MakerTag?",AMBER);
+  if(opAction=="remove" && opAlsoClean)centeredAt(96,"Then unlink in app",SILVER);
+  bottom("OK: yes  Back: no");
  }else if(opState==9){
   centeredAt(49,opAction=="clean"?"NFC data cleared":"MakerTag removed",GREEN);
-  centeredAt(74,opAction=="clean"?"Record kept":"Inventory item kept",SILVER);
+  centeredAt(74,opAction=="clean"?"Record kept":"Inventory kept",SILVER);
   bottom("OK: finish");
  }else if(opState==10 || opState==12 || opState==13){
   centeredAt(35,opState==10?"Operation failed":"Partly complete",AMBER);
-  centeredAt(56,opError.substring(0,21).c_str(),WHITE);
-  if(opState==12 || opState==13)centeredAt(80,"NFC data cleared",GREEN);
-  bottom(opState==12||opState==13?"OK: retry report":"OK: finish");
+  opTwoLine(opError,55,WHITE);
+  if(opState==12 || opState==13)centeredAt(88,"NFC data cleared",GREEN);
+  bottom(opState==12||opState==13?"OK: retry":"OK: finish");
  }else{
-  const char *progress=opState==3?"Finding MakerTag...":
-    opState==4?"Checking permission...":
+  const char *progress=opState==3?"Finding MakerTag":
+    opState==4?"Checking access":
     opState==5||opState==17?"Present same tag":
-    opState==6?"Rescan same NFC tag":
-    opState==7||opState==14?"Reporting clean...":
-    opState==8||opState==15?"Removing record...":"Working...";
-  centeredAt(48,progress,SKY);
-  centeredAt(75,opMakerId.c_str(),SILVER);
-  bottom(opState==5||opState==6?"Keep original tag":"Please wait");
+    opState==6?"Rescan same tag":
+    opState==7||opState==14?"Reporting clean":
+    opState==8||opState==15?"Removing record":"Working...";
+  opCenteredText(progress,48,SKY);
+  opCenteredText(opMakerId,75,SILVER);
+  bottom(opState==5||opState==6?"Keep same tag":"Please wait");
  }
 }
 void makerTagOperationChoose(){
