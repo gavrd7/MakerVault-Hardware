@@ -4,7 +4,7 @@
 
 The first supported project is the **MakerVault Terminal**: a handheld RFID/NFC reader and MakerTag writer that connects securely to your self-hosted MakerVault installation.
 
-**Current integration:** MakerVault **v1.4.6** + MakerVault Terminal **v0.8**. The repository contains the v0.8 source; check [Releases](https://github.com/gavrd7/MakerVault-Hardware/releases) for published binaries and source archives.
+**Current source:** MakerVault **v1.5.0** + MakerVault Terminal **v1.0.0** (release preparation; check published Releases). These are source versions under final verification; see [Releases](https://github.com/gavrd7/MakerVault-Hardware/releases) for published builds.
 
 ## MakerVault Terminal
 
@@ -28,7 +28,7 @@ A compact, 3D-printable handheld with a 128×128 colour display, rotary encoder,
 
 The browser-led **Use MakerVault Terminal** workflow is also supported. Terminal-first registration and browser-led registration are complementary options.
 
-### A typical on-device workflow
+### Filament RFID reading\n\nThe terminal reads compatible **Creality CFS** material tags, shows the material ID and the tag's actual HEX colour/swatch, and uses a paired MakerVault server to resolve the manufacturer's name and material product from a synchronised read-only printer material database. A physical spool is identified **only by its separately linked RFID UID**; matching a product name or colour never silently assigns a spool. From the MakerVault spool's **Physical Identity** window, choose **Scan using terminal** to capture its UID, then explicitly save the link.\n\n**Offline:** the tag's UID, decoded material ID and colour remain available without Wi-Fi; complete product names and linked spool details require MakerVault.\n\n**Other manufacturers:** Bambu Lab and Elegoo have experimental read-only reader paths, based on documented MIFARE Classic and NTAG data. Both are software-validated only; neither has been tested with a genuine manufacturer tag. Protected, unknown or unsupported tags fall back to generic UID reading. No third-party filament tag rewriting is supported. See [third-party RFID limitations](docs/terminal-third-party-rfid.md).\n\n### A typical on-device workflow
 
 1. Pair the terminal to MakerVault over **trusted HTTPS** and grant the required device scopes and account permissions.
 2. Open **Home → MakerTags → Add MakerTag**.
@@ -50,7 +50,7 @@ The current handheld is built around an **ESP32-S3 SuperMini**, **MFRC522/RC522 
 | Electronics | [Rev C.3 wiring / pin map](hardware/rfid-terminal/WIRING.md) · [Bill of materials](hardware/rfid-terminal/BOM.md) |
 | Printable hardware | [Enclosure CAD and assembly guide](hardware/rfid-terminal/BUILD_GUIDE.md) · [Hardware files](hardware/rfid-terminal/) |
 | Connected setup | [Pairing compatibility](firmware/rfid-terminal/PAIRING_COMPATIBILITY.md) · [MakerVault user guide](https://gavrd7.github.io/MakerVault-docs/) |
-| Tests and safeguards | [v0.8 acceptance checklist](docs/terminal-v0.8-browser-acceptance.md) · [NFC writer safety](docs/ntag215-ndef-writer-safety.md) · [NFC physical acceptance](docs/ntag215-esp32s3-acceptance.md) · [TLS testing](firmware/rfid-terminal/TLS_SECURITY_ACCEPTANCE_v0.5.1.7.md) |
+| Tests and safeguards | [terminal acceptance checklist](docs/terminal-v0.8-browser-acceptance.md) · [NFC writer safety](docs/ntag215-ndef-writer-safety.md) · [NFC physical acceptance](docs/ntag215-esp32s3-acceptance.md) · [TLS testing](firmware/rfid-terminal/TLS_SECURITY_ACCEPTANCE_v0.5.1.7.md) |
 
 **Important:** Use 3.3 V logic and verify wiring for your exact hardware revision. Do not expose the temporary configuration portal to the public internet or disable certificate verification to resolve a connection problem. Physical hardware is maker-built and **not independently safety certified**.
 
@@ -70,7 +70,7 @@ This is a functional roadmap, not a claim that every future device or feature is
 - [x] Standalone MakerTag creation, server-side record paging and A–Z jump
 - [x] Explicit foreign URL overwrite confirmation and cancellation/recovery protection
 - [x] Generic MIFARE Classic UID-only assignment without tag-memory writes
-- [ ] **Read-only Creality CFS tag material decoding** and matching decoded data to MakerVault spool inventory
+- [x] **Read-only Creality CFS tag material decoding** with online material-name and physical spool UID lookup\n- [x] Experimental Bambu Lab and Elegoo read-only decoding paths with synthetic software fixtures (not hardware-validated)
 - [ ] Further terminal usability and diagnostics improvements as needed
 - [ ] OTA firmware updates (not available in v0.8)
 
@@ -79,13 +79,13 @@ This is a functional roadmap, not a claim that every future device or feature is
 - [ ] **MakerVault Weigh Station:** ESP32-S3, load cell/HX711, round display, RFID reader and removable 3D-printed weighing platform (planned)
 - [ ] Share reusable device/pairing/record lookup components between terminal and future hardware where practical
 
-**Deliberately excluded from the Terminal v0.8 scope:** writing Creality CFS material-sector data, changing the printer's material database, or automatic printer sync/push. The planned CFS reader integration is **read-only**.
+**Deliberately excluded from the Terminal v1.0 scope:** writing Creality CFS material-sector data, changing the printer's material database, or automatic printer sync/push. Filament RFID scanning is **read-only**.
 
 ## Automatic release downloads
 
-Publishing a GitHub Release with a terminal version tag such as `v0.8.0` starts the [release-asset publishing workflow](.github/workflows/publish-terminal-release.yml). The action compiles the tagged sketch using Arduino-ESP32 3.3.12, packages the application binary and Arduino source, and copies the existing STL and STEP ZIP archives **unchanged** from a previous release containing one of each. It verifies the CAD archives and publishes an SHA-256 checksum list.
+Publishing a GitHub Release with a terminal version tag such as `v1.0.0` starts the [release-asset publishing workflow](.github/workflows/publish-terminal-release.yml). The action compiles the tagged sketch using Arduino-ESP32 3.3.12, packages the application binary and Arduino source, and copies the existing STL and STEP ZIP archives **unchanged** from a previous release containing one of each. It verifies the CAD archives and publishes an SHA-256 checksum list.
 
-Expected assets: `MakerVault-Terminal-v0.8.0-Firmware.zip`, `MakerVault-Terminal-v0.8.0-Arduino-Sketch.zip`, `MakerVault-Terminal-v0.8.0-App.bin`, `MakerVault-Terminal-v0.8.0-STL.zip`, `MakerVault-Terminal-v0.8.0-STEP.zip`, `SHA256SUMS.txt` and `CAD-SOURCE.txt`. No manual attachment is normally needed. **Check the publishing action succeeds and the files appear in the release assets after clicking Publish release**; the assets are uploaded by the workflow, not instantly when you click the button. If the previous CAD assets are missing/ambiguous, the action fails instead of inventing replacement files. The workflow does not silently modify old release assets.
+Expected assets: `MakerVault-Terminal-v1.0.0-Firmware.zip`, `MakerVault-Terminal-v1.0.0-Arduino-Sketch.zip`, `MakerVault-Terminal-v1.0.0-App.bin`, `MakerVault-Terminal-v1.0.0-STL.zip`, `MakerVault-Terminal-v1.0.0-STEP.zip`, `SHA256SUMS.txt` and `CAD-SOURCE.txt`. No manual attachment is normally needed. **Check the publishing action succeeds and the files appear in the release assets after clicking Publish release**; the assets are uploaded by the workflow, not instantly when you click the button. If the previous CAD assets are missing/ambiguous, the action fails instead of inventing replacement files. The workflow does not silently modify old release assets.
 
 The **App.bin** is intended for application-only updates that preserve NVS, when flashed to the verified board-specific application offset; the firmware ZIP contains separate app, bootloader and partition binaries for appropriately configured installations. **Never erase flash/NVS on an already paired device** unless deliberately resetting it. The source ZIP contains the complete sketch folder and links to external Arduino Library Manager dependencies.
 

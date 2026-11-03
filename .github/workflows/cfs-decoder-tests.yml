@@ -1,0 +1,32 @@
+name: Read-only CFS decoder tests
+
+on:
+  pull_request:
+    paths:
+      - 'firmware/rfid-terminal/MakerVault_Terminal_Firmware/cfs_tag_decoder.h'
+      - 'tests/cfs_tag_decoder_test.cpp'
+      - 'tests/cfs_material_labels_test.cpp'
+      - 'tests/third_party_tag_decoder_test.cpp'
+      - 'firmware/rfid-terminal/MakerVault_Terminal_Firmware/bambu_tag_decoder.h'
+      - 'firmware/rfid-terminal/MakerVault_Terminal_Firmware/elegoo_tag_decoder.h'
+      - 'firmware/rfid-terminal/MakerVault_Terminal_Firmware/cfs_material_labels.h'
+      - '.github/workflows/cfs-decoder-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cfs-decoder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run parser fixtures
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror -pedantic tests/cfs_tag_decoder_test.cpp -o /tmp/cfs_decoder_test
+          /tmp/cfs_decoder_test
+          g++ -std=c++17 -Wall -Wextra -Werror -pedantic tests/cfs_material_labels_test.cpp -o /tmp/cfs_material_labels_test
+          /tmp/cfs_material_labels_test
+          g++ -std=c++17 -Wall -Wextra -Werror -pedantic tests/third_party_tag_decoder_test.cpp -o /tmp/third_party_tag_decoder_test
+          /tmp/third_party_tag_decoder_test

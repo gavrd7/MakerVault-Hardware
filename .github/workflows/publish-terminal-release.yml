@@ -10,7 +10,7 @@ permissions:
 jobs:
   publish-terminal:
     # This action publishes only versioned terminal firmware releases.
-    if: startsWith(github.event.release.tag_name, 'v0.8.')
+    if: startsWith(github.event.release.tag_name, 'v0.8.') || startsWith(github.event.release.tag_name, 'v1.0.')
     runs-on: ubuntu-latest
     steps:
       - name: Check out the release tag
