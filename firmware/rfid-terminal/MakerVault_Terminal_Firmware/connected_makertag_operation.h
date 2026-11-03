@@ -141,7 +141,7 @@ void opRetry(){
 }
 void opCancelTask(void *){
   String reply;
-  mvHttps(opEndpoint("cancel"),"POST","{}",reply,true);
+  mvHttps("/api/device/v1/makertag-operation/"+opCancelId+"/cancel/","POST","{}",reply,true);
   mvTask=nullptr;vTaskDelete(nullptr);
 }
 void opCancel(){
@@ -149,6 +149,7 @@ void opCancel(){
      opState==14 || opState==15)return; // uncertain physical outcome: retain
   if(opId.length()==36 && !mvTask && opState!=9 &&
      opConnected()){
+    opCancelId=opId;
     if(xTaskCreatePinnedToCore(opCancelTask,"mv_op_cancel",12288,nullptr,1,&mvTask,0)!=pdPASS)
       mvTask=nullptr;
   }
