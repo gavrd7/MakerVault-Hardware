@@ -227,8 +227,20 @@ String mvRandomProof(){
  uint16_t tail=(uint16_t(raw[30])<<8)|raw[31];encoded+=alphabet[(tail>>10)&63];encoded+=alphabet[(tail>>4)&63];encoded+=alphabet[(tail&15)<<2];
  return encoded;
 }
-bool mvTimeReady(){configTime(0,0,"pool.ntp.org","time.cloudflare.com");
- for(int i=0;i<28;i++){if(time(nullptr)>1760000000)return true;vTaskDelay(pdMS_TO_TICKS(250));}
+// SNTP is configured once per boot. Reconfiguring it on every periodic
+// HTTPS /me verification needlessly tears down and reallocates resources.
+bool mvTimeReady(){
+ if(time(nullptr)>1760000000)return true;
+ static bool ntpConfigured=false;
+ if(!ntpConfigured){
+   configTime(0,0,"pool.ntp.org","time.cloudflare.com");
+   ntpConfigured=true;
+ }
+ for(int i=0;i<28;i++){
+   if(time(nullptr)>1760000000)return true;
+   if(WiFi.status()!=WL_CONNECTED)return false;
+   vTaskDelay(pdMS_TO_TICKS(250));
+ }
  return false;
 }
 int mvHttps(const String &path,const String &method,const String &body,String &response,bool bearer){
@@ -461,7 +473,9 @@ void mvLoop(){
  if(mvTask)return;
  // Periodic, background verification; don't block the encoder or reader.
  // Failed HTTPS checks retry automatically without button interaction.
-  const uint32_t retryMs=(mvCheckState==3)?60000UL:15000UL;
+  // Heartbeats already confirm connectivity every minute. Reduce idle TLS
+  // handshake churn while still periodically refreshing revoked scopes.
+  const uint32_t retryMs=(mvCheckState==3)?180000UL:15000UL;
   if(mvLastCheck==0 || (uint32_t)(millis()-mvLastCheck)>retryMs)mvRequestCheck();
 }
 
