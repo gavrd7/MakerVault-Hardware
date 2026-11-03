@@ -197,15 +197,16 @@ void opScan(MFRC522 &reader,const String &uid){
     else opState=2;
     return;
   }
-  if(reader.uid.size!=7 || !MakerVaultNtag215::matchesUid(
-     reader.uid.uidByte,reader.uid.size,opUid.c_str())){
-    opError="Wrong NFC tag";return;
-  }
   if(opState==17){
+    if(uid!=opUid){opError="Wrong tag UID";return;}
     if(!opConnected() || (uint32_t)(millis()-opAuthorizedAt)>15000UL){
       opError="Removal authorization expired";opState=10;
     }else{opError="";opState=8;}
     return;
+  }
+  if(reader.uid.size!=7 || !MakerVaultNtag215::matchesUid(
+     reader.uid.uidByte,reader.uid.size,opUid.c_str())){
+    opError="Wrong NFC tag";return;
   }
   MakerVaultRc522PageIO io(reader);
   if(opState==5){
