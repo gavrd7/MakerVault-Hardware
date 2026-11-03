@@ -14,7 +14,7 @@ struct Memory : PageIO {
   }
   bool readPage(uint8_t page,uint8_t out[4]) override {
     memcpy(out,pages[page],4);
-    if (corruptAfterWrite && writes && page==5) out[0]^=0xFF;
+    if (corruptAfterWrite && writes>=124 && page==5) out[0]^=0xFF;
     return true;
   }
   bool writePage(uint8_t page,const uint8_t bytes[4]) override {
@@ -56,8 +56,7 @@ int main(){
   assert(writeNdef(foreign,uid,uidString,id,url,true,true)==RESULT_VERIFIED);
   foreign.writes=0;
   // Same target URL is OK; the old content must belong to this MakerTag.
-  foreign.pages[5][0]='X';
-  assert(cleanUserData(foreign,uid,uidString,id,true,true)==CLEAN_REJECTED);
+  assert(cleanUserData(foreign,uid,uidString,"MV-00000000",true,true)==CLEAN_REJECTED);
   assert(foreign.writes==0);
   Memory failed;
   assert(writeNdef(failed,uid,uidString,id,url,true,true)==RESULT_VERIFIED);
