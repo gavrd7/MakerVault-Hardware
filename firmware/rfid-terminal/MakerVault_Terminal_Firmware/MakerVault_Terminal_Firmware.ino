@@ -1564,7 +1564,7 @@ void loop(){
  opSchedulePoll(page==HOME || page==MAKERTAGS_MENU);
  opScheduleWatch();
  opDispatch();
- if(opState==1 && (page==HOME || page==MAKERTAGS_MENU)){
+ if((opState==1 || opState==13) && (page==HOME || page==MAKERTAGS_MENU)){
    page=TAG_OPERATION;lastPoll=0;render();
  }
  if(page==TAG_OPERATION){
