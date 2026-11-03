@@ -6,6 +6,7 @@
 #include <Preferences.h>
 #include <time.h>
 #include <esp_system.h>
+#include <esp_heap_caps.h>
 #include <mbedtls/x509.h>
 #include <esp32_cert_bundle.h>  // Install ESP32CertBundle (Arduino-ESP32 v3.x)
 
@@ -53,6 +54,15 @@ String mvTrustMode(){return mvCaPem.isEmpty()?"Public CA bundle":"Custom CA";}
 String mvTlsErrorText(WiFiClientSecure &client,int httpCode){
  char detail[192]={0};int tlsErr=client.lastError(detail,sizeof(detail));
  mvTlsDetail=String("HTTPClient ")+String(httpCode)+" ("+HTTPClient::errorToString(httpCode)+") / TLS "+String(tlsErr)+" ("+String(detail)+")";
+ // An SSL allocator error is not a rejected certificate or bad Wi-Fi credentials.
+ String lowerDetail=String(detail);lowerDetail.toLowerCase();
+ if(lowerDetail.indexOf("alloc")>=0 || lowerDetail.indexOf("memory")>=0){
+   mvTlsStatus=3;
+   Serial.printf("[TLS] Allocation failure: free internal=%u largest internal=%u\n",
+      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
+      (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+   return "TLS memory exhausted";
+ }
  Serial.printf("[TLS] %s\n",mvTlsDetail.c_str());
  // Only classify a certificate issue when mbedTLS explicitly identifies one.
  if(tlsErr==MBEDTLS_ERR_X509_CERT_VERIFY_FAILED){mvTlsStatus=2;return "Certificate rejected (trust/name/date)";}
@@ -243,6 +253,11 @@ int mvHttps(const String &path,const String &method,const String &body,String &r
  int port=host.lastIndexOf(':');if(port>0)host=host.substring(0,port);
  if(host.isEmpty()){mvLastConnectionError="Invalid hostname";mvTlsStatus=3;return -1001;}
  IPAddress resolved;if(WiFi.hostByName(host.c_str(),resolved)!=1){mvLastConnectionError="Cannot resolve server";mvTlsStatus=3;mvTlsDetail="DNS lookup failed";Serial.println("[TLS] DNS resolution failed");return -1003;}
+ // Track memory fragmentation at the moment TLS resources are allocated.
+ // This is diagnostics only; it never bypasses certificate validation.
+ Serial.printf("[TLS] Starting: free internal=%u largest internal=%u\n",
+   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
+   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
  WiFiClientSecure client;
  if(mvCaPem.length())client.setCACert(mvCaPem.c_str());else client.setCACertBundle(x509_crt_bundle,x509_crt_bundle_len);
  client.setTimeout(4);HTTPClient http;http.setTimeout(4500);
@@ -375,6 +390,23 @@ bool mvStartHttpsTest(){
  if(xTaskCreatePinnedToCore(mvTestHttpsTask,"mv_tls_test",12288,nullptr,1,&mvTask,0)!=pdPASS){
   mvTestRunning=false;mvTestError="Cannot start test";mvTestCompleted++;return false;
  }
+ return true;
+}
+
+// Manual server recovery: reset the Wi-Fi/TCP transport without changing the
+// stored server origin, local CA, pairing key or device identity. A new /me
+// verification will restore capabilities once Wi-Fi reconnects.
+bool mvReconnectServer(){
+ if(mvTask || mvTestRunning || mvPairState==1 || mvPairState==2 ||
+    mvApiKey.isEmpty() || !mvEndpointApproved() || !mvValidUrl(mvBaseUrl))return false;
+ mvPairVerified=false;mvClearScopes();mvCheckState=1;
+ mvLastCheck=0;mvHeartbeatAt=0;mvLastHttpCode=0;
+ mvTlsStatus=0;mvTlsDetail="";mvLastConnectionError="Reconnecting transport";
+ Serial.printf("[MAKERVAULT] Manual reconnect: free internal=%u largest internal=%u\n",
+   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
+   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+ WiFi.disconnect(false,false);
+ WiFi.reconnect();
  return true;
 }
 
