@@ -393,21 +393,57 @@ bool mvStartHttpsTest(){
  return true;
 }
 
-// Manual server recovery: reset the Wi-Fi/TCP transport without changing the
-// stored server origin, local CA, pairing key or device identity. A new /me
-// verification will restore capabilities once Wi-Fi reconnects.
+// A manual reconnect has its own visible state; the connection-status page
+// is not a progress screen. Keep persisted server URL, trusted CA and API key.
+// A Wi-Fi drop during a deliberate transport reset is expected, not a new
+// pairing or trust failure.
+volatile uint8_t mvReconnectState=0; // 0 idle, 1 Wi-Fi, 2 HTTPS, 3 ready, 4 failed
+uint32_t mvReconnectStarted=0;
+String mvReconnectError="";
 bool mvReconnectServer(){
- if(mvTask || mvTestRunning || mvPairState==1 || mvPairState==2 ||
-    mvApiKey.isEmpty() || !mvEndpointApproved() || !mvValidUrl(mvBaseUrl))return false;
+ if(mvReconnectState==1 || mvReconnectState==2 ||
+    mvTask || mvTestRunning || mvPairState==1 || mvPairState==2 ||
+    mvApiKey.isEmpty() || !mvEndpointApproved() || !mvValidUrl(mvBaseUrl))
+   return false;
  mvPairVerified=false;mvClearScopes();mvCheckState=1;
  mvLastCheck=0;mvHeartbeatAt=0;mvLastHttpCode=0;
- mvTlsStatus=0;mvTlsDetail="";mvLastConnectionError="Reconnecting transport";
- Serial.printf("[MAKERVAULT] Manual reconnect: free internal=%u largest internal=%u\n",
+ mvTlsStatus=0;mvTlsDetail="";
+ mvReconnectError="";mvReconnectState=1;mvReconnectStarted=millis();
+ mvLastConnectionError="Reconnecting";
+ Serial.printf("[MAKERVAULT] Reconnect requested: free internal=%u largest=%u\\n",
    (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
    (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+ // Rebuild the STA TCP interface. The provisioning loop retains the saved
+ // networks and retries them if WiFi.reconnect() does not immediately work.
  WiFi.disconnect(false,false);
  WiFi.reconnect();
  return true;
+}
+void mvReconnectLoop(){
+ if(mvReconnectState!=1 && mvReconnectState!=2)return;
+ if(WiFi.status()!=WL_CONNECTED){
+   if((uint32_t)(millis()-mvReconnectStarted)>45000UL){
+     mvReconnectError="Wi-Fi reconnect timed out";
+     mvReconnectState=4;
+     Serial.println("[MAKERVAULT] Reconnect timed out waiting for Wi-Fi");
+   }else mvReconnectState=1;
+   return;
+ }
+ // mvLoop() performs the existing /me task. Never start a competing TLS
+ // request while another device task owns the shared connection slot.
+ if(mvCheckState==3 && mvPairVerified){
+   mvReconnectState=3;
+   Serial.println("[MAKERVAULT] Reconnect verified");
+ }else if(mvCheckState==4 && mvLastCheck!=0){
+   mvReconnectError=mvLastConnectionError;
+   mvReconnectState=4;
+   Serial.printf("[MAKERVAULT] Reconnect failed: %s\\n",mvReconnectError.c_str());
+ }else if((uint32_t)(millis()-mvReconnectStarted)>60000UL){
+   mvReconnectError="HTTPS verification timed out";
+   mvReconnectState=4;
+ }else{
+   mvReconnectState=2;
+ }
 }
 
 void mvRequestCheck(){
