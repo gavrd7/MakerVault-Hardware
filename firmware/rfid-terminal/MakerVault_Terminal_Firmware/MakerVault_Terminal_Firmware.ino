@@ -966,6 +966,7 @@ String opFitLine(const String &value, int maxPixels=116){
  String result=value;
  int16_t x,y;uint16_t width,height;
  display->getTextBounds(result.c_str(),0,0,&x,&y,&width,&height);
+ if(width<=maxPixels)return result;
  while(result.length() && width>maxPixels-12){
    result.remove(result.length()-1);
    display->getTextBounds(result.c_str(),0,0,&x,&y,&width,&height);
