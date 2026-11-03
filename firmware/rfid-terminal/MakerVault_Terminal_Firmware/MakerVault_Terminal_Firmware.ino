@@ -49,7 +49,7 @@ constexpr uint16_t BG=0x0843, CARD=0x10C6, NAVY=0x10ED,
 // This feature branch enables the new MakerTag browser for staged hardware
 // testing. The released main-branch v0.7 firmware remains unchanged.
 constexpr bool MAKERTAG_CREATE_IMPLEMENTED=true, RFID_WRITE_IMPLEMENTED=false;
-enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST,NDEF_WRITE,TAG_OPERATION,RB_CATEGORIES,RB_LIST,RB_LETTER,RB_PREVIEW};
+enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_RECONNECT,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST,NDEF_WRITE,TAG_OPERATION,RB_CATEGORIES,RB_LIST,RB_LETTER,RB_PREVIEW};
 Page page=HOME;
 const char* choices[]={"MakerTags","RFID Tags","Connections","System info"};
 int subSelected=0, detailScroll=0, detailCount=0;
@@ -557,6 +557,30 @@ void mvStatusPage(){
  detailWrapped(String("Server: ")+mvBaseUrl,SILVER);
  if(mvLastHttpCode)detailWrapped("HTTP: "+String(mvLastHttpCode),mvLastHttpCode==200?GREEN:AMBER);
  detailPaint("MakerVault link");
+}
+void mvReconnectPage(){
+ display->fillScreen(BG);header("Reconnect server");
+ uint8_t phase=mvReconnectState;
+ if(phase==1){
+   centeredAt(35,"Refreshing Wi-Fi",SKY);
+   centeredAt(58,WiFi.status()==WL_CONNECTED?"Network restored":"Joining saved Wi-Fi",SILVER);
+   centeredAt(83,"Checking connection",SILVER);
+ }else if(phase==2){
+   centeredAt(35,"Wi-Fi connected",GREEN);
+   centeredAt(59,"Verifying HTTPS",SKY);
+   centeredAt(83,"Checking saved key",SILVER);
+ }else if(phase==3){
+   centeredAt(38,"Server connected",GREEN);
+   centeredAt(61,"HTTPS verified",GREEN);
+   centeredAt(83,"Pairing retained",SILVER);
+ }else if(phase==4){
+   centeredAt(34,"Reconnect failed",AMBER);
+   String error=mvReconnectError.isEmpty()?"Check Wi-Fi / HTTPS":mvReconnectError;
+   opTwoLine(error,57,WHITE);
+ }else{
+   centeredAt(48,"Reconnect idle",SILVER);
+ }
+ bottom(phase==1||phase==2?"Back: keep trying":(phase==4?"OK: retry Back":"OK: done Back"));
 }
 void mvPairPage(){
  display->fillScreen(BG);header("Pair device");
@@ -1079,6 +1103,7 @@ void render(){
   case DELETE_WIFI:deleteNetworkScreen();break;
   case MAKERVAULT_SETUP:mvSettings();break;
   case MV_STATUS:mvStatusPage();break;
+  case MV_RECONNECT:mvReconnectPage();break;
   case MV_TLS_TEST:mvTlsTestPage();break;
   case MV_PAIR:mvPairPage();break;
   case SETUP_WIFI:drawSetupQR(*display,BG,WHITE);break;
@@ -1192,10 +1217,9 @@ void choose(){
                      (opState!=0 && opState!=9 && opState!=10));
 #endif
    if(!busyTag && !wifiManualOffline && mvReconnectServer()){
-    // Existing WiFiMulti fallback handles stored networks if reconnect()
-    // cannot immediately rejoin the previous AP.
+    // Existing WiFiMulti fallback handles saved networks if needed.
     lastReconnectTry=millis()-12001UL;
-    detailScroll=0;page=MV_STATUS;render();
+    page=MV_RECONNECT;render();
    }else{
     simple("Reconnect server",busyTag?"Finish tag task":
            (wifiManualOffline?"Wi-Fi set offline":"Unable to reconnect"),
@@ -1219,11 +1243,17 @@ void choose(){
  if(page==MV_FORGET){if(mvForgetLocalPairing()){page=MV_MENU;render();}else {page=MV_MENU;render();}return;}
  if(page==MV_PAIR){if(mvPairState!=2)mvStartPairing();render();return;}
  if(page==MV_STATUS){mvRequestCheck();render();return;}
+ if(page==MV_RECONNECT){
+  if(mvReconnectState==4){if(mvReconnectServer())render();}
+  else if(mvReconnectState==3 || mvReconnectState==0){page=MV_MENU;render();}
+  return;
+ }
  if(page!=HOME)return;
  page=(selected==0)?MAKERTAGS_MENU:(selected==1?RFID_MENU:(selected==2?CONNECTIONS:INFO));subSelected=0;
  Serial.print("[MENU] Selected: ");Serial.println(choices[selected]);render();
 }
 void back(){
+ if(page==MV_RECONNECT){page=MV_MENU;render();return;}
  if(page==RB_LETTER){page=RB_LIST;render();return;}
  if(page==RB_PREVIEW){
   if(rbBeginStatus==1){rbBeginStatus=0;rbBeginCancel=false;}
@@ -1616,7 +1646,7 @@ void loop(){
   }
  }
  provisioningLoop();
- mvLoop();mvHeartbeatLoop();
+ mvLoop();mvReconnectLoop();mvHeartbeatLoop();
  regScheduleCancel();
  regScheduleProbe();
  scanLookupDispatch();
@@ -1699,6 +1729,11 @@ void loop(){
  }
  // Repaint the connection page when a manual reconnect or background
  // verification changes status. Preserve the user's scroll position.
+ if(page==MV_RECONNECT){
+  static uint8_t displayedReconnect=255;
+  uint8_t phase=mvReconnectState;
+  if(displayedReconnect!=phase){displayedReconnect=phase;mvReconnectPage();}
+ }
  if(page==MV_STATUS){
   static uint8_t lastMvStatusDrawn=255;
   static wl_status_t lastWifiStatusDrawn=WL_IDLE_STATUS;
