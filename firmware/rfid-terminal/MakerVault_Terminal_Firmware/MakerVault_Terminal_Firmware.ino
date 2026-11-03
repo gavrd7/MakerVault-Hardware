@@ -1191,14 +1191,16 @@ void choose(){
    busyTag=busyTag||(ndefState==1||ndefState==2||ndefState==4||ndefState==8||
                      (opState!=0 && opState!=9 && opState!=10));
 #endif
-   if(!busyTag && mvReconnectServer()){
+   if(!busyTag && !wifiManualOffline && mvReconnectServer()){
     // Existing WiFiMulti fallback handles stored networks if reconnect()
     // cannot immediately rejoin the previous AP.
     lastReconnectTry=millis()-12001UL;
     detailScroll=0;page=MV_STATUS;render();
    }else{
-    simple("Reconnect server",busyTag?"Finish tag task":"Unable to reconnect",
-           busyTag?"Try again after":"Check saved pairing");
+    simple("Reconnect server",busyTag?"Finish tag task":
+           (wifiManualOffline?"Wi-Fi set offline":"Unable to reconnect"),
+           busyTag?"Try again after":
+           (wifiManualOffline?"Enable Wi-Fi first":"Check saved pairing"));
    }
   }
   else if(mvSelected==2){detailScroll=0;mvStartHttpsTest();page=MV_TLS_TEST;render();}
@@ -1693,6 +1695,18 @@ void loop(){
     pairedAt=(mvPairState==3&&mvCheckState==3)?millis():0;
    }
    if(pairedAt && (uint32_t)(millis()-pairedAt)>2300){pairedAt=0;page=MV_MENU;render();}
+  }
+ }
+ // Repaint the connection page when a manual reconnect or background
+ // verification changes status. Preserve the user's scroll position.
+ if(page==MV_STATUS){
+  static uint8_t lastMvStatusDrawn=255;
+  static wl_status_t lastWifiStatusDrawn=WL_IDLE_STATUS;
+  uint8_t state=mvCheckState;
+  wl_status_t wifi=WiFi.status();
+  if(lastMvStatusDrawn!=state || lastWifiStatusDrawn!=wifi){
+   lastMvStatusDrawn=state;lastWifiStatusDrawn=wifi;
+   mvStatusPage();
   }
  }
  if(page==MV_TLS_TEST){
