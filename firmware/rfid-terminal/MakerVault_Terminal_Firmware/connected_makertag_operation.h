@@ -80,7 +80,12 @@ void opBeginTask(void *){
       opId=id;opMakerId=mvField(reply,"maker_tag_id");
       opLabel=mvField(reply,"label");opState=2;
     }else{opError="Invalid server response";opState=10;}
-  }else{opError=mvField(reply,"error");if(!opError.length())opError="MakerTag not found/denied";opState=10;}
+  }else{
+    if(code==404)opError="Tag not registered";
+    else if(code==409)opError="UID conflict or busy";
+    else {opError=mvField(reply,"error");if(!opError.length())opError="Request denied";}
+    opState=10;
+  }
   mvTask=nullptr;vTaskDelete(nullptr);
 }
 bool opBeginTerminal(){
