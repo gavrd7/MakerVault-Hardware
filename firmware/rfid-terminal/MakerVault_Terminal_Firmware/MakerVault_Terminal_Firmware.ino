@@ -1292,15 +1292,16 @@ void readerInit(){
 void pollTag(){
 #if MAKERVAULT_NDEF_WRITER_ENABLED
  const bool ndefScanning=(page==NDEF_WRITE && (ndefState==1 || ndefState==4 || ndefState==8));
+ const bool opScanning=(page==TAG_OPERATION && (opState==1 || opState==5 || opState==6));
  if(!ndefScanning && ndefState!=0 && page==NDEF_WRITE)return;
 #else
- const bool ndefScanning=false;
+ const bool ndefScanning=false,opScanning=false;
 #endif
- if((!ndefScanning && page!=SCAN && !(page==REGISTRATION && regState==1) && !(page==LOOKUP_REQUEST && remoteLookupState==1))||(page==SCAN && scanResultVisible)||(uint32_t)(millis()-lastPoll)<100)return;
+ if((!ndefScanning && !opScanning && page!=SCAN && !(page==REGISTRATION && regState==1) && !(page==LOOKUP_REQUEST && remoteLookupState==1))||(page==SCAN && scanResultVisible)||(uint32_t)(millis()-lastPoll)<100)return;
  lastPoll=millis();digitalWrite(TFT_CS,HIGH);
  bool cardReady=false;
 #if MAKERVAULT_NDEF_WRITER_ENABLED
- if(ndefScanning && ndefAutoFlow){
+ if((ndefScanning && ndefAutoFlow) || (opScanning && (opState==5 || opState==6))){
    // A tag already scanned during registration may be in HALT, not IDLE.
    // REQA (IsNewCardPresent) only sees IDLE tags. WUPA is required to
    // reselect the SAME still-present tag without a second physical tap.
@@ -1317,6 +1318,11 @@ void pollTag(){
  uid.toUpperCase();recentUid=uid;
  recentType=String(rfid.PICC_GetTypeName(rfid.PICC_GetType(rfid.uid.sak)));
 #if MAKERVAULT_NDEF_WRITER_ENABLED
+ if(opScanning){
+  opScan(rfid,uid);
+  rfid.PICC_HaltA();rfid.PCD_StopCrypto1();
+  makerTagOperationScreen();return;
+ }
  if(ndefScanning){
   if(ndefState==8){
    MakerVaultRc522PageIO io(rfid);
@@ -1555,6 +1561,16 @@ void loop(){
  if(regServerClosed && page==REGISTRATION){regReset();page=MAKERTAGS_MENU;render();}
  remoteLookupPoll();
 #if MAKERVAULT_NDEF_WRITER_ENABLED
+ opSchedulePoll(page==HOME || page==MAKERTAGS_MENU);
+ opDispatch();
+ if(opState==1 && (page==HOME || page==MAKERTAGS_MENU)){
+   page=TAG_OPERATION;lastPoll=0;render();
+ }
+ if(page==TAG_OPERATION){
+   static uint8_t lastOpDrawn=255;
+   if(lastOpDrawn!=opState){lastOpDrawn=opState;makerTagOperationScreen();}
+ }
+
  // A previous verified or failed NFC request must not block the next
  // confirmed registration. Do not discard an active, unverified operation.
  if(regState==4 && regAutoWriteId.length()==36 &&
