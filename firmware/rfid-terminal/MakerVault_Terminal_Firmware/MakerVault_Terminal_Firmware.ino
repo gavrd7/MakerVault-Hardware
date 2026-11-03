@@ -990,7 +990,7 @@ void makerTagOperationScreen(){
  }else{
   const char *progress=opState==3?"Finding MakerTag...":
     opState==4?"Checking permission...":
-    opState==5?"Present same NFC tag":
+    opState==5||opState==17?"Present same tag":
     opState==6?"Rescan same NFC tag":
     opState==7||opState==14?"Reporting clean...":
     opState==8||opState==15?"Removing record...":"Working...";
@@ -1292,7 +1292,7 @@ void readerInit(){
 void pollTag(){
 #if MAKERVAULT_NDEF_WRITER_ENABLED
  const bool ndefScanning=(page==NDEF_WRITE && (ndefState==1 || ndefState==4 || ndefState==8));
- const bool opScanning=(page==TAG_OPERATION && (opState==1 || opState==5 || opState==6));
+ const bool opScanning=(page==TAG_OPERATION && (opState==1 || opState==5 || opState==6 || opState==17));
  if(!ndefScanning && ndefState!=0 && page==NDEF_WRITE)return;
 #else
  const bool ndefScanning=false,opScanning=false;
@@ -1301,7 +1301,7 @@ void pollTag(){
  lastPoll=millis();digitalWrite(TFT_CS,HIGH);
  bool cardReady=false;
 #if MAKERVAULT_NDEF_WRITER_ENABLED
- if((ndefScanning && ndefAutoFlow) || (opScanning && (opState==5 || opState==6))){
+ if((ndefScanning && ndefAutoFlow) || (opScanning && (opState==5 || opState==6 || opState==17))){
    // A tag already scanned during registration may be in HALT, not IDLE.
    // REQA (IsNewCardPresent) only sees IDLE tags. WUPA is required to
    // reselect the SAME still-present tag without a second physical tap.
