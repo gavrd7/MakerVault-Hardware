@@ -1562,6 +1562,7 @@ void loop(){
  remoteLookupPoll();
 #if MAKERVAULT_NDEF_WRITER_ENABLED
  opSchedulePoll(page==HOME || page==MAKERTAGS_MENU);
+ opScheduleWatch();
  opDispatch();
  if(opState==1 && (page==HOME || page==MAKERTAGS_MENU)){
    page=TAG_OPERATION;lastPoll=0;render();
