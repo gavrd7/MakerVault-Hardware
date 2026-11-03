@@ -24,6 +24,7 @@
 // NTAG215 NFC link writing is enabled in standard v0.7 builds.
 #if MAKERVAULT_NDEF_WRITER_ENABLED
 #include "connected_ndef_write.h"
+#include "connected_makertag_operation.h"
 #endif
 
 // MakerVault handheld UI v0.8 development -- ESP32-S3 SuperMini, Rev C.3
@@ -48,7 +49,7 @@ constexpr uint16_t BG=0x0843, CARD=0x10C6, NAVY=0x10ED,
 // This feature branch enables the new MakerTag browser for staged hardware
 // testing. The released main-branch v0.7 firmware remains unchanged.
 constexpr bool MAKERTAG_CREATE_IMPLEMENTED=true, RFID_WRITE_IMPLEMENTED=false;
-enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST,NDEF_WRITE,RB_CATEGORIES,RB_LIST,RB_LETTER,RB_PREVIEW};
+enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST,NDEF_WRITE,TAG_OPERATION,RB_CATEGORIES,RB_LIST,RB_LETTER,RB_PREVIEW};
 Page page=HOME;
 const char* choices[]={"MakerTags","RFID Tags","Connections","System info"};
 int subSelected=0, detailScroll=0, detailCount=0;
@@ -935,6 +936,77 @@ void rbPreviewScreen(){
  bottom(rbBeginStatus==2?"Back: cancel":"OK: start Back: list");
 }
 
+// Four-row MakerTags menu; avoids truncating actions at the bottom.
+bool makerTagCanCreate(){return mvPairVerified && mvCanWriteTags && mvCanSearchInventory;}
+bool makerTagCanManage(){return mvPairVerified && mvCanWriteTags;}
+const char *makerTagChoice(int index){
+ if(index==0)return "Scan MakerTag";
+ if(makerTagCanCreate() && index==1)return "Create MakerTag";
+ int offset=1+int(makerTagCanCreate());
+ if(makerTagCanManage() && index==offset)return "Clean MakerTag";
+ if(makerTagCanManage() && index==offset+1)return "Remove MakerTag";
+ return "";
+}
+void makerTagRow(int index){
+ int y=30+index*20;
+ display->fillRect(4,y,120,19,BG);
+ display->fillRoundRect(5,y,118,18,3,index==subSelected?NAVY:CARD);
+ if(index==subSelected)display->fillRoundRect(5,y+3,3,12,1,SKY);
+ textAt(12,y+6,makerTagChoice(index),index==subSelected?WHITE:SILVER);
+}
+void makerTagsMenuScreen(){
+ display->fillScreen(BG);header("MakerTags");
+ for(int i=0;i<categoryCount();++i)makerTagRow(i);
+ bottom("OK: open Back: home");
+}
+void makerTagOperationScreen(){
+ display->fillScreen(BG);
+ header(opAction=="clean"?"Clean MakerTag":"Remove MakerTag");
+ if(opState==11){
+  centeredAt(37,"Also clear NFC data?",WHITE);
+  centeredAt(61,opAlsoClean?"> Yes - clean NFC":"  Yes - clean NFC",opAlsoClean?SKY:SILVER);
+  centeredAt(80,!opAlsoClean?"> No - keep NFC":"  No - keep NFC",!opAlsoClean?SKY:SILVER);
+  bottom("OK: select Back: cancel");
+ }else if(opState==1){
+  centeredAt(42,"Present MakerTag",SKY);
+  if(opUid.length())centeredAt(64,opUid.substring(0,17).c_str(),WHITE);
+  if(opError.length())centeredAt(88,opError.substring(0,20).c_str(),AMBER);
+  bottom("Back: cancel");
+ }else if(opState==2){
+  centeredAt(33,opMakerId.c_str(),SKY);
+  centeredAt(50,opLabel.substring(0,21).c_str(),WHITE);
+  centeredAt(74,opAlsoClean?"Clean NFC data?":"Remove registration?",AMBER);
+  if(opAction=="remove" && opAlsoClean)centeredAt(90,"Then remove registration",SILVER);
+  bottom("OK: confirm Back: no");
+ }else if(opState==9){
+  centeredAt(49,opAction=="clean"?"NFC data cleared":"MakerTag removed",GREEN);
+  centeredAt(74,opAction=="clean"?"Record kept":"Inventory item kept",SILVER);
+  bottom("OK: finish");
+ }else if(opState==10 || opState==12 || opState==13){
+  centeredAt(35,opState==10?"Operation failed":"Partly complete",AMBER);
+  centeredAt(56,opError.substring(0,21).c_str(),WHITE);
+  if(opState==12 || opState==13)centeredAt(80,"NFC data cleared",GREEN);
+  bottom(opState==12||opState==13?"OK: retry report":"OK: finish");
+ }else{
+  const char *progress=opState==3?"Finding MakerTag...":
+    opState==4?"Checking permission...":
+    opState==5?"Present same NFC tag":
+    opState==6?"Rescan same NFC tag":
+    opState==7||opState==14?"Reporting clean...":
+    opState==8||opState==15?"Removing record...":"Working...";
+  centeredAt(48,progress,SKY);
+  centeredAt(75,opMakerId.c_str(),SILVER);
+  bottom(opState==5||opState==6?"Keep original tag":"Please wait");
+ }
+}
+void makerTagOperationChoose(){
+ if(opState==11){opState=1;opError="";}
+ else if(opState==2){opConfirm();}
+ else if(opState==12 || opState==13){opRetry();}
+ else if(opState==9 || opState==10){opReset();page=MAKERTAGS_MENU;}
+ render();
+}
+
 void render(){
  switch(page){
   case HOME:home();break;
@@ -943,6 +1015,7 @@ void render(){
   case LOOKUP_REQUEST:remoteLookupScreen();break;
 #if MAKERVAULT_NDEF_WRITER_ENABLED
   case NDEF_WRITE:ndefWriterScreen();break;
+  case TAG_OPERATION:makerTagOperationScreen();break;
 #endif
   case RB_CATEGORIES:rbCategoriesScreen();break;
   case RB_LIST:rbListScreen();break;
@@ -964,7 +1037,7 @@ void render(){
   case SETUP_WIFI:drawSetupQR(*display,BG,WHITE);break;
   case INFO:info();break;
   case WIFI_STATUS:wifiStatusPage();break;
-  case MAKERTAGS_MENU:categoryPage("MakerTags","Scan MakerTag",categoryCount()>1?"Create MakerTag":"");break;
+  case MAKERTAGS_MENU:makerTagsMenuScreen();break;
   case RFID_MENU:categoryPage("RFID Tags","Read RFID tag",categoryCount()>1?"Write RFID tag":"");break;
   case UNAVAILABLE:simple(unavailableTitle.c_str(),"Coming later","No tag written");break;
  }
@@ -974,7 +1047,7 @@ void control(const char* event){
  if(page==CONTROLS){display->fillRoundRect(10,102,108,10,2,NAVY);textAt(14,103,event,WHITE);feedbackUntil=millis()+850;}
 }
 int categoryCount(){
- if(page==MAKERTAGS_MENU)return 1+int(MAKERTAG_CREATE_IMPLEMENTED && mvCanWriteTags && mvCanSearchInventory && mvPairVerified);
+ if(page==MAKERTAGS_MENU)return 1+int(makerTagCanCreate())+2*int(makerTagCanManage());
  if(page==RFID_MENU)return 1+int(RFID_WRITE_IMPLEMENTED && mvCanWriteTags && mvPairVerified);
  return 1;
 }
@@ -998,11 +1071,11 @@ void move(int dir){
  if(page==MV_TLS_TEST){detailMove(dir,"Test HTTPS");return;}
  if(page==WIFI_STATUS){detailMove(dir,"Wi-Fi status");return;}
  if(page==INFO){detailMove(dir,"System info");return;}
- if(page==MAKERTAGS_MENU||page==RFID_MENU){int old=subSelected;subSelected=(subSelected+dir+categoryCount())%categoryCount();
-  if(old!=subSelected){const char* first=page==MAKERTAGS_MENU?"Scan MakerTag":"Read RFID tag";
-   const char* second=page==MAKERTAGS_MENU?"Create MakerTag":"Write RFID tag";
-   categoryRow(old,old==0?first:second);categoryRow(subSelected,subSelected==0?first:second);}
-  return;}
+ if(page==TAG_OPERATION && opState==11){opAlsoClean=!opAlsoClean;makerTagOperationScreen();return;}
+ if(page==MAKERTAGS_MENU){int old=subSelected;subSelected=(subSelected+dir+categoryCount())%categoryCount();
+  if(old!=subSelected){makerTagRow(old);makerTagRow(subSelected);}return;}
+ if(page==RFID_MENU){int old=subSelected;subSelected=(subSelected+dir+categoryCount())%categoryCount();
+  if(old!=subSelected){categoryRow(old,old==0?"Read RFID tag":"Write RFID tag");categoryRow(subSelected,subSelected==0?"Read RFID tag":"Write RFID tag");}return;}
  if(page==CONTROLS){control(dir>0?"Clockwise":"Anticlockwise");return;}
  if(page==CONNECTIONS){int old=connSelected;connSelected=(connSelected+dir+2)%2;connectionRow(old);connectionRow(connSelected);return;}
  if(page==WIFI_MENU){int old=wifiSelected;wifiSelected=(wifiSelected+dir+WIFI_MENU_COUNT)%WIFI_MENU_COUNT;wifiRow(old);wifiRow(wifiSelected);return;}
@@ -1028,8 +1101,17 @@ void choose(){
   return;
  }
 
- if(page==MAKERTAGS_MENU||page==RFID_MENU){
-  if(subSelected==0){scanMakerTagsMode=(page==MAKERTAGS_MENU);page=SCAN;scanResultVisible=false;scanLookupState=0;render();}
+ if(page==TAG_OPERATION){makerTagOperationChoose();return;}
+ if(page==MAKERTAGS_MENU){
+  const String action=makerTagChoice(subSelected);
+  if(action=="Scan MakerTag"){scanMakerTagsMode=true;page=SCAN;scanResultVisible=false;scanLookupState=0;}
+  else if(action=="Create MakerTag"){rbCategory=0;page=RB_CATEGORIES;}
+  else if(action=="Clean MakerTag"){opStart("clean");page=TAG_OPERATION;}
+  else if(action=="Remove MakerTag"){opStart("remove");page=TAG_OPERATION;}
+  render();return;
+ }
+ if(page==RFID_MENU){
+  if(subSelected==0){scanMakerTagsMode=false;page=SCAN;scanResultVisible=false;scanLookupState=0;render();}
   else if(subSelected<categoryCount()){
    if(page==MAKERTAGS_MENU && subSelected==1 &&
        mvPairVerified && mvCanWriteTags && mvCanSearchInventory){
@@ -1083,6 +1165,13 @@ void back(){
  }
  if(page==RB_LIST){rbEpoch++;rbStatus=0;page=RB_CATEGORIES;render();return;}
  if(page==RB_CATEGORIES){page=MAKERTAGS_MENU;subSelected=0;render();return;}
+ if(page==TAG_OPERATION){
+  if(opState==5||opState==6||opState==7||opState==12||opState==13||opState==14||opState==15){
+   opError="Clean may be incomplete";makerTagOperationScreen();return;
+  }
+  if(mvTask && (opState==3||opState==4)){opError="Finishing server check";makerTagOperationScreen();return;}
+  opCancel();page=MAKERTAGS_MENU;render();return;
+ }
 
 #if MAKERVAULT_NDEF_WRITER_ENABLED
  if(page==NDEF_WRITE){ndefReset(ndefState!=6);page=MAKERTAGS_MENU;render();return;}
@@ -1145,6 +1234,7 @@ void processInputs(){
    render();return;
   }
 #endif
+  if(page==TAG_OPERATION){makerTagOperationChoose();return;}
   if(page==REGISTRATION && (regState==2||regState==6)){regSubmit(regUid,regKind);registrationScreen();return;}
   if(page==REGISTRATION && regState==4){regReset();page=MAKERTAGS_MENU;render();return;}
   if(page==RB_CATEGORIES||page==RB_LIST||page==RB_LETTER||page==RB_PREVIEW)choose();
