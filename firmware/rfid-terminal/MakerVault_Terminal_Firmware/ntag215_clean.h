@@ -24,7 +24,7 @@ inline bool emptyUserData(const uint8_t *data, size_t size) {
 // re-selection/read of the SAME UID before reporting success to MakerVault.
 // This function never edits a MakerVault record.
 inline CleanResult cleanUserData(PageIO &io, const uint8_t uid[7],
-                                 const char *expectedUid,
+                                 const char *expectedUid, const char *makerTagId,
                                  bool confirmed, bool authorized) {
   if (!confirmed || !authorized || !matchesUid(uid,7,expectedUid))
     return CLEAN_REJECTED;
@@ -39,7 +39,7 @@ inline CleanResult cleanUserData(PageIO &io, const uint8_t uid[7],
   if (!blankNdef(original,sizeof(original))) {
     char uri[MakerVaultNdef::kMaxUriLength+1]={};
     if (!MakerVaultNdef::decodeUri(original,sizeof(original),uri,sizeof(uri)) ||
-        !MakerVaultNdef::validUri(uri,strlen(uri)))
+        !hasIdentitySuffix(uri,makerTagId))
       return CLEAN_REJECTED;
   }
   static const uint8_t zeros[4]={0,0,0,0};
