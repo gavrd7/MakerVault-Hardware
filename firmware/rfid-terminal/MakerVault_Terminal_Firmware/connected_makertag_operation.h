@@ -34,6 +34,7 @@ String opEndpoint(const String &suffix){
 }
 void opStart(const char *action){
   opReset();opAction=action;opAlsoClean=opAction=="clean";
+  if(!opConnected()){opError="Connect to MakerVault first";opState=10;return;}
   opState=opAction=="remove"?11:1;
 }
 
