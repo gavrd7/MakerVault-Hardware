@@ -16,6 +16,10 @@ volatile uint8_t opState=0;
 // 14 reporting clean, 15 reporting removal, 17 recheck tag for remove-only.
 uint32_t opLastPoll=0,opAuthorizedAt=0,opLastWatch=0;
 
+bool opJsonClean(const String &body){
+  return body.indexOf("\"also_clean\": true")>=0 ||
+         body.indexOf("\"also_clean\":true")>=0;
+}
 bool opConnected() {
   return mvPairVerified && mvCanWriteTags && mvEndpointApproved() &&
     mvCheckState==3 && WiFi.status()==WL_CONNECTED;
@@ -46,8 +50,7 @@ void opPendingTask(void *){
        maker.length()==11 && (action=="clean"||action=="remove")){
       opId=id;opUid=uid;opMakerId=maker;opLabel=mvField(body,"label");
       opAction=action;opSource="browser";
-      opAlsoClean=body.indexOf("\"also_clean\": true")>=0 ||
-                  body.indexOf("\"also_clean\":true")>=0;
+      opAlsoClean=opJsonClean(body);
       opError="";opState=1;
     }
   }
@@ -91,7 +94,7 @@ void opCheckTask(void *){
   int code=mvHttps(opEndpoint("status"),"GET","",reply,true);
   if(code==200 && mvField(reply,"state")=="pending" &&
      mvField(reply,"uid")==opUid && mvField(reply,"maker_tag_id")==opMakerId &&
-     mvField(reply,"action")==opAction){
+     mvField(reply,"action")==opAction && opJsonClean(reply)==opAlsoClean){
     opAuthorizedAt=millis();opState=opAlsoClean?5:17;
   }else{opError="Request cancelled/changed";opState=10;}
   mvTask=nullptr;vTaskDelete(nullptr);
@@ -103,6 +106,35 @@ bool opConfirm(){
     mvTask=nullptr;opError="Cannot verify request";opState=10;return false;
   }
   return true;
+}
+
+// Keep the terminal display in sync with browser cancellation/expiry.
+// A failed status call never grants a physical write or server removal.
+void opWatchTask(void *){
+  const String id=opId;
+  String reply;
+  int code=mvHttps("/api/device/v1/makertag-operation/"+id+"/status/",
+                   "GET","",reply,true);
+  if(opId==id && (opState==1 || opState==2)){
+    if(code==200){
+      if(mvField(reply,"state")!="pending" ||
+         mvField(reply,"uid")!=opUid ||
+         mvField(reply,"maker_tag_id")!=opMakerId ||
+         mvField(reply,"action")!=opAction ||
+         opJsonClean(reply)!=opAlsoClean){
+        opError="Request cancelled or changed";opState=10;
+      }
+    }
+  }
+  mvTask=nullptr;vTaskDelete(nullptr);
+}
+void opScheduleWatch(){
+  if((opState!=1 && opState!=2) || opId.length()!=36 || mvTask ||
+     !opConnected())return;
+  if((uint32_t)(millis()-opLastWatch)<4000UL)return;
+  opLastWatch=millis();
+  if(xTaskCreatePinnedToCore(opWatchTask,"mv_op_watch",12288,nullptr,1,&mvTask,0)!=pdPASS)
+    mvTask=nullptr;
 }
 
 void opCleanReportTask(void *){
