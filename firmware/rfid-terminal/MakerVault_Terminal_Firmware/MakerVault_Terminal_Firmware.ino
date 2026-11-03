@@ -487,15 +487,15 @@ void wifiStatusPage(){
  detailPaint("Wi-Fi status");
 }
 void makerRow(int i){
- const char* entries[]={"Connection status","Test HTTPS","Pair device","Server setup","Remove CA","Forget pairing"};
- int y=30+i*14;
- display->fillRect(5,y,118,13,BG);
- if(i==mvSelected)display->fillRoundRect(5,y,118,13,3,NAVY);
- textAt(10,y+3,entries[i],i==mvSelected?WHITE:SILVER);
+ const char* entries[]={"Connection status","Reconnect server","Test HTTPS","Pair device","Server setup","Remove CA","Forget pairing"};
+ int y=29+i*12;
+ display->fillRect(5,y,118,12,BG);
+ if(i==mvSelected)display->fillRoundRect(5,y,118,12,3,NAVY);
+ textAt(10,y+2,entries[i],i==mvSelected?WHITE:SILVER);
 }
 void makerMenu(){
  display->fillScreen(BG);header("MakerVault");
- for(int i=0;i<6;i++)makerRow(i);
+ for(int i=0;i<7;i++)makerRow(i);
  bottom("OK: open Back: menu");
 }
 void removeCaScreen(){
@@ -546,6 +546,8 @@ void mvStatusPage(){
  detailWrapped("Trust: "+mvTrustMode(),SILVER);
  detailWrapped("Last OK: "+mvLastGoodConnection,SILVER);
  detailWrapped("Last error: "+mvLastConnectionError,mvTlsStatus==1?SILVER:AMBER);
+ detailWrapped("Heap free: "+String(heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT))+" bytes",SILVER);
+ detailWrapped("Largest block: "+String(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT))+" bytes",SILVER);
  detailWrapped("API permissions:",WHITE);
  detailWrapped(String("MakerTag read: ")+(mvCanReadTags?"Allowed":"Not granted"),mvCanReadTags?GREEN:SILVER);
  detailWrapped(String("MakerTag write: ")+(mvCanWriteTags?"Allowed":"Not granted"),mvCanWriteTags?GREEN:SILVER);
@@ -1124,7 +1126,7 @@ void move(int dir){
  if(page==CONTROLS){control(dir>0?"Clockwise":"Anticlockwise");return;}
  if(page==CONNECTIONS){int old=connSelected;connSelected=(connSelected+dir+2)%2;connectionRow(old);connectionRow(connSelected);return;}
  if(page==WIFI_MENU){int old=wifiSelected;wifiSelected=(wifiSelected+dir+WIFI_MENU_COUNT)%WIFI_MENU_COUNT;wifiRow(old);wifiRow(wifiSelected);return;}
- if(page==MV_MENU){int old=mvSelected;mvSelected=(mvSelected+dir+6)%6;makerRow(old);makerRow(mvSelected);return;}
+ if(page==MV_MENU){int old=mvSelected;mvSelected=(mvSelected+dir+7)%7;makerRow(old);makerRow(mvSelected);return;}
  if(page==KNOWN_WIFI){if(knownCount){int old=networkSelected;networkSelected=(networkSelected+dir+knownCount)%knownCount;knownNetworkRow(old);knownNetworkRow(networkSelected);}return;}
  if(page!=HOME)return;
  int old=selected;selected=(selected+dir+4)%4;
@@ -1181,10 +1183,28 @@ void choose(){
  }
  if(page==MV_MENU){
   if(mvSelected==0){detailScroll=0;page=MV_STATUS;render();}
-  else if(mvSelected==1){detailScroll=0;mvStartHttpsTest();page=MV_TLS_TEST;render();}
-  else if(mvSelected==2){page=MV_PAIR;if(mvPairState!=2)mvStartPairing();render();}
-  else if(mvSelected==3){beginMakerVaultPortal();if(setupPortalRunning()){page=MAKERVAULT_SETUP;render();}}
-  else if(mvSelected==4){page=MV_CA_REMOVE;render();}
+  else if(mvSelected==1){
+   // Avoid interrupting a physical NFC clean, registration or browser handoff.
+   bool busyTag=(regState==1||regState==2||regState==4||regState==6||
+                  ndefState==1||ndefState==2||ndefState==4||ndefState==8||
+                  remoteLookupState==1||remoteLookupState==2);
+#if MAKERVAULT_NDEF_WRITER_ENABLED
+   busyTag=busyTag||(opState!=0 && opState!=9 && opState!=10);
+#endif
+   if(!busyTag && mvReconnectServer()){
+    // Existing WiFiMulti fallback handles stored networks if reconnect()
+    // cannot immediately rejoin the previous AP.
+    lastReconnectTry=millis()-12001UL;
+    detailScroll=0;page=MV_STATUS;render();
+   }else{
+    simple("Reconnect server",busyTag?"Finish tag task":"Unable to reconnect",
+           busyTag?"Try again after":"Check saved pairing");
+   }
+  }
+  else if(mvSelected==2){detailScroll=0;mvStartHttpsTest();page=MV_TLS_TEST;render();}
+  else if(mvSelected==3){page=MV_PAIR;if(mvPairState!=2)mvStartPairing();render();}
+  else if(mvSelected==4){beginMakerVaultPortal();if(setupPortalRunning()){page=MAKERVAULT_SETUP;render();}}
+  else if(mvSelected==5){page=MV_CA_REMOVE;render();}
   else {page=MV_FORGET;render();}
   return;
  }
