@@ -15,13 +15,14 @@ A compact, 3D-printable handheld with a 128×128 colour display, rotary encoder,
 | Area | What it does |
 | --- | --- |
 | **Wi-Fi and setup** | Connects to 2.4 GHz Wi-Fi, remembers multiple networks, and offers a temporary access point / QR-assisted phone setup |
-| **Secure connection** | Uses certificate-verified HTTPS, including a trusted local CA where required; supports connection diagnostics and an approved server endpoint |
+| **Secure connection** | Uses certificate-verified HTTPS, including a trusted local CA where required; supports diagnostics and an approved server endpoint; the #159 firmware branch adds a manual **Reconnect server** action and internal heap diagnostics for long-idle troubleshooting |
 | **Pairing and management** | Pairs through MakerVault's eight-digit Connected Devices wizard; uses scoped, revocable credentials and reports device heartbeat |
 | **Read and look up tags** | Scans compatible RFID/NFC UIDs and resolves registered MakerTags through MakerVault |
 | **Create MakerTags on the terminal** | Browse **Inventory, Location, Printed Part, Printer, Project, Reusable Spool and Spool** directly on the handheld |
 | **Browse large inventories** | Uses alphabetically sorted, paged server results, record IDs and a hold-to-open **A–Z letter jump**; no on-screen keyboard or full inventory download |
 | **Assign and reassign** | Assigns a new tag, recognises an existing MakerTag, and preserves its stable `MV-XXXXXXXX` identity on reassignment |
 | **NTAG215 NFC writing** | Writes and verifies the permanent MakerVault HTTPS record URL on supported writable NTAG215 tags |
+| **Clean / Remove MakerTag — #159 feature branch** | **Clean** clears and verifies physical NTAG215 NFC data while retaining the MakerVault record; **Remove** deletes the server registration without altering NFC memory; **Remove + clean** wipes first, then removes the registration. Requires matching draft application PR #165; not part of the published Terminal v1.0.0 binary |
 | **Protected URL replacement** | Shows an additional **Back / Confirm** prompt before replacing a recognised unrelated HTTP(S) NFC URL; Back leaves it unchanged |
 | **Safety and recovery** | Enforces physical UID matching, tag compatibility/lock checks, server authorisation and expiry; supports cancellation and retry after incomplete writes |
 | **Other RFID tags** | Supports UID-only lookup/assignment for compatible MIFARE Classic 1K tags without modifying their sectors |
@@ -35,6 +36,21 @@ The terminal reads compatible **Creality CFS** material tags, shows the material
 **Offline:** the tag's UID, decoded material ID and colour remain available without Wi-Fi; complete product names and linked spool details require MakerVault.
 
 **Other manufacturers:** Bambu Lab and Elegoo have experimental read-only reader paths, based on documented MIFARE Classic and NTAG data. Both are software-validated only; neither has been tested with a genuine manufacturer tag. Protected, unknown or unsupported tags fall back to generic UID reading. No third-party filament tag rewriting is supported. See [third-party RFID limitations](docs/terminal-third-party-rfid.md).
+
+### Clean or remove a MakerTag (draft #159)
+
+The **`feature/makertag-clean` firmware branch** (companion MakerVault app PR #165) adds two distinct options to **Home → MakerTags**:
+
+1. **Clean MakerTag:** present a **registered writable NTAG215**, review the linked record, confirm, and present the *same* tag for erasure and verification. The physical user data is cleared; the MakerVault MakerTag registration, UID association and short URL **remain** so the tag can be programmed again later. An unregistered/blank tag is rejected as **Tag not registered**.
+2. **Remove MakerTag:** present a registered MakerTag, then answer **Clean NFC data too? Yes / No / Back**. **No** removes the server registration only, leaving any old NFC URL physically present (but no longer resolvable). **Yes** requires the original NTAG215 to be physically wiped and independently verified before the registration is removed. **Back** cancels.
+
+The **web interface** offers **Clean NFC data** with paired-terminal selection and **Remove MakerTag** with an optional physical clean. An incomplete or failed wipe must not delete the MakerTag record, and a reported partial result must not be mistaken for full completion.
+
+Physical cleaning is supported only for writable, unprotected **NTAG215 MakerTags**. UID/manufacturer, capability/lock, password/configuration and reserved pages remain unchanged. Generic RFID and Creality CFS/Bambu/Elegoo manufacturer tags are **never wiped**.
+
+**Connection troubleshooting (feature branch):** Under **Connections → MakerVault → Reconnect server**, refresh the Wi-Fi/TCP transport and reverify the saved HTTPS pairing without forgetting the server, CA or credentials. **Test HTTPS** is diagnostic only and is not a replacement for reconnecting. **Connection status** now includes free internal heap and largest block size, useful if TLS fails after hours of idle operation. The long-idle SSL memory-allocation issue is **still under real-hardware investigation**; manual recovery is not a confirmed root-cause fix.
+
+The full step-by-step instructions are being updated in the [MakerVault user guide](https://gavrd7.github.io/MakerVault-docs/using/maker-tags/). **The new actions are not available in the published v1.0.0 firmware**; use the matching staged app and feature-branch firmware until validation and release.
 
 ### A typical on-device workflow
 
