@@ -13,7 +13,7 @@ volatile uint8_t opState=0;
 // 4 checking live authority, 5 clean on same tag, 6 fresh independent readback,
 // 7 report clean, 8 report remove, 9 done, 10 failed, 11 choose clean on remove,
 // 12 clean reported locally, server retry, 13 wipe done, removal retry,
-// 14 reporting clean, 15 reporting removal.
+// 14 reporting clean, 15 reporting removal, 17 recheck tag for remove-only.
 uint32_t opLastPoll=0,opAuthorizedAt=0,opLastWatch=0;
 
 bool opConnected() {
@@ -92,7 +92,7 @@ void opCheckTask(void *){
   if(code==200 && mvField(reply,"state")=="pending" &&
      mvField(reply,"uid")==opUid && mvField(reply,"maker_tag_id")==opMakerId &&
      mvField(reply,"action")==opAction){
-    opAuthorizedAt=millis();opState=opAlsoClean?5:8;
+    opAuthorizedAt=millis();opState=opAlsoClean?5:17;
   }else{opError="Request cancelled/changed";opState=10;}
   mvTask=nullptr;vTaskDelete(nullptr);
 }
@@ -168,6 +168,12 @@ void opScan(MFRC522 &reader,const String &uid){
   if(reader.uid.size!=7 || !MakerVaultNtag215::matchesUid(
      reader.uid.uidByte,reader.uid.size,opUid.c_str())){
     opError="Wrong NFC tag";return;
+  }
+  if(opState==17){
+    if(!opConnected() || (uint32_t)(millis()-opAuthorizedAt)>15000UL){
+      opError="Removal authorization expired";opState=10;
+    }else{opError="";opState=8;}
+    return;
   }
   MakerVaultRc522PageIO io(reader);
   if(opState==5){
