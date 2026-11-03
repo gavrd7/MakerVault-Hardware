@@ -1216,7 +1216,9 @@ void choose(){
    busyTag=busyTag||(ndefState==1||ndefState==2||ndefState==4||ndefState==8||
                      (opState!=0 && opState!=9 && opState!=10));
 #endif
-   if(!busyTag && !wifiManualOffline && mvReconnectServer()){
+   if(!busyTag && (mvReconnectState==1 || mvReconnectState==2)){
+    page=MV_RECONNECT;render();
+   }else if(!busyTag && !wifiManualOffline && mvReconnectServer()){
     // Existing WiFiMulti fallback handles saved networks if needed.
     lastReconnectTry=millis()-12001UL;
     page=MV_RECONNECT;render();
