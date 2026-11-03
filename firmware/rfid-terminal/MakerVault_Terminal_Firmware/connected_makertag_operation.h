@@ -51,7 +51,10 @@ void opPendingTask(void *){
       opId=id;opUid=uid;opMakerId=maker;opLabel=mvField(body,"label");
       opAction=action;opSource="browser";
       opAlsoClean=opJsonClean(body);
-      opError="";opState=1;
+      if(mvField(body,"state")=="cleaned" && opAction=="remove" && opAlsoClean){
+        opError="NFC cleared; removal pending";
+        opState=13; // Only finish the same verified operation; do not re-erase.
+      }else{opError="";opState=1;}
     }
   }
   mvTask=nullptr;vTaskDelete(nullptr);
