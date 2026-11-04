@@ -418,9 +418,9 @@ int mvHttps(const String &path,const String &method,const String &body,String &r
   return code;
 }
 
-void mvPairTask(void *){
+void mvPairTaskRun(){
  // Pairing runs on a worker core. All live UI and RC522 operations stay in loop().
- if(!mvTimeReady()){mvPairError="Clock unavailable";mvPairState=4;mvTask=nullptr;vTaskDelete(nullptr);return;}
+ if(!mvTimeReady()){mvPairError="Clock unavailable";mvPairState=4;return;}
  mvPairSecret=mvRandomProof();mvPairId="";mvPairCode="";
  String body="{\"device_uid\":\""+mvDeviceUid+"\",\"device_type\":\"rfid_terminal\",\"claim_secret\":\""+mvPairSecret+"\"}";
  String response;int code=mvHttps("/api/device/v1/pairing/start/","POST",body,response,false);
@@ -481,15 +481,16 @@ void mvPairTask(void *){
   // Transient network/server issues are retried until expiry.
  }
  if(mvPairState==2){mvPairState=mvPairCancelled?0:5;mvPairError=mvPairCancelled?"":"Code expired";}
- mvPairSecret="";mvTask=nullptr;vTaskDelete(nullptr);
+ mvPairSecret="";
 }
+void mvPairTask(void *){mvPairTaskRun();mvTask=nullptr;vTaskDelete(nullptr);}
 void mvStartPairing(){
  if(mvTask||WiFi.status()!=WL_CONNECTED||!mvValidUrl(mvBaseUrl))return;
  mvPairCancelled=false;mvPairCode="";mvPairError="";mvPairState=1;
  if(xTaskCreatePinnedToCore(mvPairTask,"mv_pair",16384,nullptr,1,&mvTask,0)!=pdPASS){mvPairState=4;mvPairError="Insufficient memory";mvTask=nullptr;}
 }
 void mvCancelPairing(){mvPairCancelled=true;}
-void mvVerificationTask(void *){
+void mvVerificationTaskRun(){
  bool success=false;
  if(mvTimeReady()){
    String answer;int code=mvHttps("/api/device/v1/me/","GET","",answer,true);
@@ -503,9 +504,10 @@ void mvVerificationTask(void *){
    mvTlsStatus=3;mvLastConnectionError="Clock unavailable";
    Serial.println("[TLS] Accurate clock required for certificate verification");
  }
- mvCheckState=success?3:4;mvLastCheck=millis();mvTask=nullptr;vTaskDelete(nullptr);
+ mvCheckState=success?3:4;mvLastCheck=millis();
 }
-void mvTestHttpsTask(void *){
+void mvVerificationTask(void *){mvVerificationTaskRun();mvTask=nullptr;vTaskDelete(nullptr);}
+void mvTestHttpsTaskRun(){
  // Reset the captured result before this specific manual request.
  mvTlsDetail="";
  mvTlsStatus=0;
@@ -524,8 +526,8 @@ void mvTestHttpsTask(void *){
  Serial.printf("[TLS TEST] code=%d trust=%s result=%s\n",code,mvTestTrust.c_str(),mvTestError.c_str());
  mvTestRunning=false;
  mvTestCompleted++;
- mvTask=nullptr;vTaskDelete(nullptr);
 }
+void mvTestHttpsTask(void *){mvTestHttpsTaskRun();mvTask=nullptr;vTaskDelete(nullptr);}
 bool mvStartHttpsTest(){
  if(mvTask || mvTestRunning)return false;
  mvTestRunning=true;
@@ -620,15 +622,15 @@ const char* mvStatusName(){
 }
 
 // Heartbeats are issued off-thread, only for wizard-paired devices.
-void mvHeartbeatTask(void *){
+void mvHeartbeatTaskRun(){
  String reply;int code=mvHttps("/api/device/v1/heartbeat/","POST",
   String("{\"firmware_version\":\"")+MAKERVAULT_FIRMWARE_VERSION+"\",\"capabilities\":[\"rfid\",\"nfc\",\"wifi\""+String(MAKERVAULT_NDEF_WRITER_ENABLED?",\"ntag215_ndef_write\"":"")+"],\"status\":{\"wifi\":\"connected\",\"api\":\"ok\",\"hardware\":\"ok\"}}",reply,true);
  // Always record a status for diagnosis; the server updates last_seen only on 200.
  mvLastHttpCode=code;
  Serial.printf("[MAKERVAULT] heartbeat HTTP response: %d\n",code);
  if(code==401 || code==403){mvCheckState=4;mvPairVerified=false;mvClearScopes();}
- mvTask=nullptr;vTaskDelete(nullptr);
 }
+void mvHeartbeatTask(void *){mvHeartbeatTaskRun();mvTask=nullptr;vTaskDelete(nullptr);}
 void mvHeartbeatLoop(){
  if(mvPairState!=3||!mvPairVerified||!mvEndpointApproved()||mvTask||mvCheckState!=3||WiFi.status()!=WL_CONNECTED)return;
  // Zero means no heartbeat has been attempted since boot/pairing: send promptly.
