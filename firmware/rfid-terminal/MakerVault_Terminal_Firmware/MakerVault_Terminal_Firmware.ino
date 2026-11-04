@@ -26,6 +26,7 @@
 #include "connected_ndef_write.h"
 #include "connected_makertag_operation.h"
 #endif
+#include "terminal_pending_work.h"
 
 // MakerVault handheld UI v0.8 development -- ESP32-S3 SuperMini, Rev C.3
 // Shared hardware SPI, read-only RFID, all original GPIO assignments.
@@ -1649,18 +1650,19 @@ void loop(){
  }
  provisioningLoop();
  mvLoop();mvReconnectLoop();mvHeartbeatLoop();
+ pendingWorkPoll(page==HOME || page==MAKERTAGS_MENU || page==RFID_MENU);
  regScheduleCancel();
  regScheduleProbe();
  scanLookupDispatch();
  if(page==SCAN && scanResultVisible && cfsDetected)cfsSpoolLookupDispatch();
- regSchedulePoll();
+ // Consolidated into pendingWorkPoll().
  regCheckStatus();
  regDispatchSubmit();
  regSubmissionWatchdog();
  if(regServerClosed && page==REGISTRATION){regReset();page=MAKERTAGS_MENU;render();}
- remoteLookupPoll();
+ // Consolidated into pendingWorkPoll().
 #if MAKERVAULT_NDEF_WRITER_ENABLED
- opSchedulePoll(page==HOME || page==MAKERTAGS_MENU);
+ // Consolidated into pendingWorkPoll().
  opScheduleWatch();
  opDispatch();
  if((opState==1 || opState==13) && (page==HOME || page==MAKERTAGS_MENU)){
@@ -1702,7 +1704,7 @@ void loop(){
    if(ndefState==2)ndefState=10;
   }
  }
- ndefSchedulePoll();
+ // Consolidated into pendingWorkPoll().
  ndefScheduleWatch();
  ndefScheduleCancel();
  ndefExpireLocal();
