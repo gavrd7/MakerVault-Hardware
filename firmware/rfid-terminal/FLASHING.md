@@ -1,6 +1,6 @@
 # Flashing and validating the MakerVault handheld firmware
 
-This guide covers **v0.6.0**, the current published and physically tested firmware in [MakerVault_Terminal_Firmware](MakerVault_Terminal_Firmware/). v0.5.1.13 was the original acceptance baseline; v0.5.1.14 corrected only version-reporting metadata. No downloadable binary or clean-machine reproducible build has been verified.
+This guide covers the **MakerVault Terminal v1.0.0 release-candidate source** for the matching **MakerVault v1.5.0** app. For published downloads, verify the final release tag and assets on [MakerVault-Hardware Releases](https://github.com/gavrd7/MakerVault-Hardware/releases). Earlier v0.5/v0.6 limitations no longer describe the current source.
 
 ## Prepare Arduino IDE
 
@@ -22,7 +22,7 @@ With the enclosure open, watch Serial Monitor at **115200** and confirm TFT spla
 5. In **Connections → MakerVault**, set the **HTTPS** base URL. For a self-signed/private Local CA, import its **public CA certificate** via the setup workflow; never place a CA private key on the device. Run the built-in HTTPS test. No `setInsecure()` fallback should be used.
 6. On MakerVault: **Settings → User Account → Connected Devices → Add Device**. Start Pair Device on the handheld, then approve the displayed **eight-digit pairing code** in the web wizard before expiry. Verify paired status and heartbeat; reboot and check persistence. Credentials are stored in device NVS but **NVS encryption/secure boot were not verified**. Terminal-side Forget pairing is local-only; revoke from MakerVault if necessary.
 
-**v0.6.0 capabilities with MakerVault v1.4.0:** UID scanning and online MakerTag resolution, browser-initiated registration and reassignment with terminal confirmation, paired HTTPS, session cancellation and recovery. **Not implemented:** physical writing to NFC/RFID tag memory, Creality CFS payload decode, OTA updates. The preceding v0.5.1.14 baseline has fewer features.
+**v1.0.0 capabilities with MakerVault v1.5.0:** paired HTTPS using ESP-IDF persistent client, MakerTag scanning and record browsing, on-device/browser-led assignment and reassignment, verified NTAG215 NDEF URL writing, clean and clean-on-remove with physical confirmation, read-only Creality CFS decoding and experimental read-only Bambu/Elegoo paths. **Not implemented:** OTA and third-party filament-tag writing. Clean/remove requires the matching app PR #165 or an app release containing it.
 
 ## Troubleshooting
 
@@ -39,8 +39,16 @@ With the enclosure open, watch Serial Monitor at **115200** and confirm TFT spla
 | Pairing never gets code | Confirm backend HTTPS reachability and server wizard; inspect TLS diagnostics before retrying |
 | Metadata says older version | Confirm you are flashing v0.6.0 from the current source, not the older v0.5.1.13 or v0.5.1.14 releases |
 
-> **Build reproducibility outstanding:** A hardware user has already confirmed the firmware features work, but an independent clean Arduino install and pinned third-party dependency versions have not yet been verified. No precompiled binary or OTA package is claimed.
+> **Release-candidate status:** The maintainer reports all release regression tests passed, including HTTPS reliability, certificate rejection, connectivity recovery and physical MakerTag safety. CI compiles this source. The public release binaries and sketch packages must still be checked after a final tag is published; do not assume draft-branch artifacts are release assets.
 
-## v0.6.0 version verification
+## v1.0.0 verification and endurance
 
-For the connected-terminal candidate, open `MakerVault_Terminal_Firmware/MakerVault_Terminal_Firmware.ino` from the v0.6.0 release source. After flashing, confirm **v0.6.0** appears in System info and the 115200-baud serial startup message, and that online Maker Tag lookup, registration, cancellation and reassignment still work with the matching MakerVault branch. Firmware v0.5.1.14 is retained as the earlier stable baseline. This firmware does not write NFC/RFID tag memory.
+1. Flash the final v1.0.0 build without erasing NVS. Check **v1.0.0** in System info, serial startup and heartbeat.
+2. Confirm the terminal pairs or reconnects with validated HTTPS (never insecure TLS), resolves `/api/device/v1/me/`, and reports heartbeat HTTP 200.
+3. Watch `[TLS SESSION]` for `backend=ESP-IDF` and reuse of an established connection, and `[HEAP IDLE]` for a stable baseline with normal task count. Small per-request `[TLS HEAP]` negative deltas are temporary buffers, not proof of leakage.
+4. Verify Wi-Fi loss and MakerVault HTTPS restart recover without re-pairing. A different/untrusted CA and mismatched hostname must be rejected.
+5. On disposable NTAG215 tags, validate creation, overwrite confirmation, wrong-tag rejection, cancellation, clean without deleting the registration and clean-on-remove with verified erase before server removal.
+6. Verify UID-only RFID and supported read-only filament tag paths, record browsing and menu responsiveness.
+7. Verify a complete multi-hour idle run with no sustained free-heap decline and no unplanned recovery reboot. The maintainer has reported the full release test matrix passed; always retest following any firmware changes.
+
+Never erase a registered production tag while testing.

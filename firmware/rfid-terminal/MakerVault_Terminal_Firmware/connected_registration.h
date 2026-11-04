@@ -124,7 +124,7 @@ void regCheckStatus() {
 void regSchedulePoll() {
   if(regState!=0||mvTask||mvCheckState!=3||!mvPairVerified||!mvCanWriteTags||
      !mvEndpointApproved()||WiFi.status()!=WL_CONNECTED)return;
-  if((uint32_t)(millis()-regLastCheck)<5000)return;
+  if((uint32_t)(millis()-regLastCheck)<15000UL)return;
   regLastCheck=millis();
   if(xTaskCreatePinnedToCore(regPendingTask,"mv_reg_poll",12288,nullptr,1,&mvTask,0)!=pdPASS)
     mvTask=nullptr;

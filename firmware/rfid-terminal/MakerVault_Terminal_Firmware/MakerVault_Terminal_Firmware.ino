@@ -24,7 +24,10 @@
 // NTAG215 NFC link writing is enabled in standard v0.7 builds.
 #if MAKERVAULT_NDEF_WRITER_ENABLED
 #include "connected_ndef_write.h"
+#include "connected_makertag_operation.h"
 #endif
+#include "terminal_pending_work.h"
+#include "memory_recovery_policy.h"
 
 // MakerVault handheld UI v0.8 development -- ESP32-S3 SuperMini, Rev C.3
 // Shared hardware SPI, read-only RFID, all original GPIO assignments.
@@ -48,7 +51,7 @@ constexpr uint16_t BG=0x0843, CARD=0x10C6, NAVY=0x10ED,
 // This feature branch enables the new MakerTag browser for staged hardware
 // testing. The released main-branch v0.7 firmware remains unchanged.
 constexpr bool MAKERTAG_CREATE_IMPLEMENTED=true, RFID_WRITE_IMPLEMENTED=false;
-enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST,NDEF_WRITE,RB_CATEGORIES,RB_LIST,RB_LETTER,RB_PREVIEW};
+enum Page:uint8_t{HOME,SCAN,RECENT,CONTROLS,INFO,CONNECTIONS,SETUP_WIFI,KNOWN_WIFI,DELETE_WIFI,MAKERVAULT_SETUP,MV_STATUS,MV_RECONNECT,MV_PAIR,MAKERTAGS_MENU,RFID_MENU,UNAVAILABLE,WIFI_MENU,MV_MENU,MV_FORGET,WIFI_STATUS,MV_TLS_TEST,MV_CA_REMOVE,REGISTRATION,LOOKUP_REQUEST,NDEF_WRITE,TAG_OPERATION,RB_CATEGORIES,RB_LIST,RB_LETTER,RB_PREVIEW};
 Page page=HOME;
 const char* choices[]={"MakerTags","RFID Tags","Connections","System info"};
 int subSelected=0, detailScroll=0, detailCount=0;
@@ -486,15 +489,15 @@ void wifiStatusPage(){
  detailPaint("Wi-Fi status");
 }
 void makerRow(int i){
- const char* entries[]={"Connection status","Test HTTPS","Pair device","Server setup","Remove CA","Forget pairing"};
- int y=30+i*14;
- display->fillRect(5,y,118,13,BG);
- if(i==mvSelected)display->fillRoundRect(5,y,118,13,3,NAVY);
- textAt(10,y+3,entries[i],i==mvSelected?WHITE:SILVER);
+ const char* entries[]={"Connection status","Reconnect server","Test HTTPS","Pair device","Server setup","Remove CA","Forget pairing"};
+ int y=29+i*12;
+ display->fillRect(5,y,118,12,BG);
+ if(i==mvSelected)display->fillRoundRect(5,y,118,12,3,NAVY);
+ textAt(10,y+2,entries[i],i==mvSelected?WHITE:SILVER);
 }
 void makerMenu(){
  display->fillScreen(BG);header("MakerVault");
- for(int i=0;i<6;i++)makerRow(i);
+ for(int i=0;i<7;i++)makerRow(i);
  bottom("OK: open Back: menu");
 }
 void removeCaScreen(){
@@ -545,6 +548,14 @@ void mvStatusPage(){
  detailWrapped("Trust: "+mvTrustMode(),SILVER);
  detailWrapped("Last OK: "+mvLastGoodConnection,SILVER);
  detailWrapped("Last error: "+mvLastConnectionError,mvTlsStatus==1?SILVER:AMBER);
+ detailWrapped(String("Work API: ")+
+   (pendingWorkLastCode==200?"Connected":
+    pendingWorkLastCode==404?"Update MakerVault app":
+    pendingWorkLastCode==403?"Scope denied":
+    pendingWorkLastCode==0?"Not checked":"Retry pending"),
+   pendingWorkLastCode==200?GREEN:AMBER);
+ detailWrapped("Heap free: "+String(heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT))+" bytes",SILVER);
+ detailWrapped("Largest block: "+String(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT))+" bytes",SILVER);
  detailWrapped("API permissions:",WHITE);
  detailWrapped(String("MakerTag read: ")+(mvCanReadTags?"Allowed":"Not granted"),mvCanReadTags?GREEN:SILVER);
  detailWrapped(String("MakerTag write: ")+(mvCanWriteTags?"Allowed":"Not granted"),mvCanWriteTags?GREEN:SILVER);
@@ -554,6 +565,30 @@ void mvStatusPage(){
  detailWrapped(String("Server: ")+mvBaseUrl,SILVER);
  if(mvLastHttpCode)detailWrapped("HTTP: "+String(mvLastHttpCode),mvLastHttpCode==200?GREEN:AMBER);
  detailPaint("MakerVault link");
+}
+void mvReconnectPage(){
+ display->fillScreen(BG);header("Reconnect server");
+ uint8_t phase=mvReconnectState;
+ if(phase==1){
+   centeredAt(35,"Refreshing Wi-Fi",SKY);
+   centeredAt(58,WiFi.status()==WL_CONNECTED?"Network restored":"Joining saved Wi-Fi",SILVER);
+   centeredAt(83,"Checking connection",SILVER);
+ }else if(phase==2){
+   centeredAt(35,"Wi-Fi connected",GREEN);
+   centeredAt(59,"Verifying HTTPS",SKY);
+   centeredAt(83,"Checking saved key",SILVER);
+ }else if(phase==3){
+   centeredAt(38,"Server connected",GREEN);
+   centeredAt(61,"HTTPS verified",GREEN);
+   centeredAt(83,"Pairing retained",SILVER);
+ }else if(phase==4){
+   centeredAt(34,"Reconnect failed",AMBER);
+   String error=mvReconnectError.isEmpty()?"Check Wi-Fi / HTTPS":mvReconnectError;
+   opTwoLine(error,57,WHITE);
+ }else{
+   centeredAt(48,"Reconnect idle",SILVER);
+ }
+ bottom(phase==1||phase==2?"Back: keep trying":(phase==4?"OK: retry Back":"OK: done Back"));
 }
 void mvPairPage(){
  display->fillScreen(BG);header("Pair device");
@@ -935,6 +970,122 @@ void rbPreviewScreen(){
  bottom(rbBeginStatus==2?"Back: cancel":"OK: start Back: list");
 }
 
+// Four-row MakerTags menu; avoids truncating actions at the bottom.
+bool makerTagCanCreate(){return mvPairVerified && mvCanWriteTags && mvCanSearchInventory;}
+bool makerTagCanManage(){return mvPairVerified && mvCanWriteTags;}
+const char *makerTagChoice(int index){
+ if(index==0)return "Scan MakerTag";
+ if(makerTagCanCreate() && index==1)return "Create MakerTag";
+ int offset=1+int(makerTagCanCreate());
+ if(makerTagCanManage() && index==offset)return "Clean MakerTag";
+ if(makerTagCanManage() && index==offset+1)return "Remove MakerTag";
+ return "";
+}
+void makerTagRow(int index){
+ int y=30+index*20;
+ display->fillRect(4,y,120,19,BG);
+ display->fillRoundRect(5,y,118,18,3,index==subSelected?NAVY:CARD);
+ if(index==subSelected)display->fillRoundRect(5,y+3,3,12,1,SKY);
+ textAt(12,y+6,makerTagChoice(index),index==subSelected?WHITE:SILVER);
+}
+void makerTagsMenuScreen(){
+ display->fillScreen(BG);header("MakerTags");
+ for(int i=0;i<categoryCount();++i)makerTagRow(i);
+ bottom("OK: open Back: home");
+}
+// Bound operation messages to the 128px display. The standard 6px font
+// fits at most 19 characters in the 116px safe content width. Prefer
+// word boundaries and use an ellipsis only when two rows cannot hold text.
+String opFitLine(const String &value, int maxPixels=116){
+ String result=value;
+ int16_t x,y;uint16_t width,height;
+ display->getTextBounds(result.c_str(),0,0,&x,&y,&width,&height);
+ if(width<=maxPixels)return result;
+ while(result.length() && width>maxPixels-12){
+   result.remove(result.length()-1);
+   display->getTextBounds(result.c_str(),0,0,&x,&y,&width,&height);
+ }
+ if(result.length()!=value.length())result+="..";
+ return result;
+}
+void opCenteredText(const String &value,int y,uint16_t color){
+ const String fit=opFitLine(value);
+ centeredAt(y,fit.c_str(),color);
+}
+void opTwoLine(const String &value,int y,uint16_t color){
+ int16_t x,yy;uint16_t width,height;
+ display->getTextBounds(value.c_str(),0,0,&x,&yy,&width,&height);
+ if(width<=116){centeredAt(y,value.c_str(),color);return;}
+ int split=-1;
+ // Find the last whole-word break that fits the first row.
+ for(int i=0;i<(int)value.length();++i){
+   if(value[i]!=' ')continue;
+   const String first=value.substring(0,i);
+   display->getTextBounds(first.c_str(),0,0,&x,&yy,&width,&height);
+   if(width<=116)split=i;
+ }
+ if(split<0){
+   // Long unbroken identifiers can still wrap without clipping.
+   for(int i=1;i<(int)value.length();++i){
+     const String first=value.substring(0,i);
+     display->getTextBounds(first.c_str(),0,0,&x,&yy,&width,&height);
+     if(width<=116)split=i;
+   }
+ }
+ if(split<=0){opCenteredText(value,y,color);return;}
+ opCenteredText(value.substring(0,split),y,color);
+ String tail=value.substring(split);
+ tail.trim();
+ if(tail.length())opCenteredText(tail,y+13,color);
+}
+void makerTagOperationScreen(){
+ display->fillScreen(BG);
+ header(opAction=="clean"?"Clean MakerTag":"Remove MakerTag");
+ if(opState==11){
+  centeredAt(39,"Clean NFC too?",WHITE);
+  centeredAt(64,opAlsoClean?"> Yes - clean NFC":"  Yes - clean NFC",opAlsoClean?SKY:SILVER);
+  centeredAt(84,!opAlsoClean?"> No - keep NFC":"  No - keep NFC",!opAlsoClean?SKY:SILVER);
+  bottom("OK: select  Back: no");
+ }else if(opState==1){
+  centeredAt(41,"Present MakerTag",SKY);
+  if(opUid.length())opCenteredText(opUid,62,WHITE);
+  if(opError.length())opTwoLine(opError,82,AMBER);
+  bottom("Back: cancel");
+ }else if(opState==2){
+  opCenteredText(opMakerId,33,SKY);
+  opTwoLine(opLabel,47,WHITE);
+  centeredAt(79,opAlsoClean?"Clean NFC data?":"Remove MakerTag?",AMBER);
+  if(opAction=="remove" && opAlsoClean)centeredAt(96,"Then unlink in app",SILVER);
+  bottom("OK: yes  Back: no");
+ }else if(opState==9){
+  centeredAt(49,opAction=="clean"?"NFC data cleared":"MakerTag removed",GREEN);
+  centeredAt(74,opAction=="clean"?"Record kept":"Inventory kept",SILVER);
+  bottom("OK: finish");
+ }else if(opState==10 || opState==12 || opState==13){
+  centeredAt(35,opState==10?"Operation failed":"Partly complete",AMBER);
+  opTwoLine(opError,55,WHITE);
+  if(opState==12 || opState==13)centeredAt(88,"NFC data cleared",GREEN);
+  bottom(opState==12||opState==13?"OK: retry":"OK: finish");
+ }else{
+  const char *progress=opState==3?"Finding MakerTag":
+    opState==4?"Checking access":
+    opState==5||opState==17?"Present same tag":
+    opState==6?"Rescan same tag":
+    opState==7||opState==14?"Reporting clean":
+    opState==8||opState==15?"Removing record":"Working...";
+  opCenteredText(progress,48,SKY);
+  opCenteredText(opMakerId,75,SILVER);
+  bottom(opState==5||opState==6?"Keep same tag":"Please wait");
+ }
+}
+void makerTagOperationChoose(){
+ if(opState==11){opState=1;opError="";}
+ else if(opState==2){opConfirm();}
+ else if(opState==12 || opState==13){opRetry();}
+ else if(opState==9 || opState==10){opReset();page=MAKERTAGS_MENU;}
+ render();
+}
+
 void render(){
  switch(page){
   case HOME:home();break;
@@ -943,6 +1094,7 @@ void render(){
   case LOOKUP_REQUEST:remoteLookupScreen();break;
 #if MAKERVAULT_NDEF_WRITER_ENABLED
   case NDEF_WRITE:ndefWriterScreen();break;
+  case TAG_OPERATION:makerTagOperationScreen();break;
 #endif
   case RB_CATEGORIES:rbCategoriesScreen();break;
   case RB_LIST:rbListScreen();break;
@@ -959,12 +1111,13 @@ void render(){
   case DELETE_WIFI:deleteNetworkScreen();break;
   case MAKERVAULT_SETUP:mvSettings();break;
   case MV_STATUS:mvStatusPage();break;
+  case MV_RECONNECT:mvReconnectPage();break;
   case MV_TLS_TEST:mvTlsTestPage();break;
   case MV_PAIR:mvPairPage();break;
   case SETUP_WIFI:drawSetupQR(*display,BG,WHITE);break;
   case INFO:info();break;
   case WIFI_STATUS:wifiStatusPage();break;
-  case MAKERTAGS_MENU:categoryPage("MakerTags","Scan MakerTag",categoryCount()>1?"Create MakerTag":"");break;
+  case MAKERTAGS_MENU:makerTagsMenuScreen();break;
   case RFID_MENU:categoryPage("RFID Tags","Read RFID tag",categoryCount()>1?"Write RFID tag":"");break;
   case UNAVAILABLE:simple(unavailableTitle.c_str(),"Coming later","No tag written");break;
  }
@@ -974,7 +1127,7 @@ void control(const char* event){
  if(page==CONTROLS){display->fillRoundRect(10,102,108,10,2,NAVY);textAt(14,103,event,WHITE);feedbackUntil=millis()+850;}
 }
 int categoryCount(){
- if(page==MAKERTAGS_MENU)return 1+int(MAKERTAG_CREATE_IMPLEMENTED && mvCanWriteTags && mvCanSearchInventory && mvPairVerified);
+ if(page==MAKERTAGS_MENU)return 1+int(makerTagCanCreate())+2*int(makerTagCanManage());
  if(page==RFID_MENU)return 1+int(RFID_WRITE_IMPLEMENTED && mvCanWriteTags && mvPairVerified);
  return 1;
 }
@@ -998,15 +1151,15 @@ void move(int dir){
  if(page==MV_TLS_TEST){detailMove(dir,"Test HTTPS");return;}
  if(page==WIFI_STATUS){detailMove(dir,"Wi-Fi status");return;}
  if(page==INFO){detailMove(dir,"System info");return;}
- if(page==MAKERTAGS_MENU||page==RFID_MENU){int old=subSelected;subSelected=(subSelected+dir+categoryCount())%categoryCount();
-  if(old!=subSelected){const char* first=page==MAKERTAGS_MENU?"Scan MakerTag":"Read RFID tag";
-   const char* second=page==MAKERTAGS_MENU?"Create MakerTag":"Write RFID tag";
-   categoryRow(old,old==0?first:second);categoryRow(subSelected,subSelected==0?first:second);}
-  return;}
+ if(page==TAG_OPERATION && opState==11){opAlsoClean=!opAlsoClean;makerTagOperationScreen();return;}
+ if(page==MAKERTAGS_MENU){int old=subSelected;subSelected=(subSelected+dir+categoryCount())%categoryCount();
+  if(old!=subSelected){makerTagRow(old);makerTagRow(subSelected);}return;}
+ if(page==RFID_MENU){int old=subSelected;subSelected=(subSelected+dir+categoryCount())%categoryCount();
+  if(old!=subSelected){categoryRow(old,old==0?"Read RFID tag":"Write RFID tag");categoryRow(subSelected,subSelected==0?"Read RFID tag":"Write RFID tag");}return;}
  if(page==CONTROLS){control(dir>0?"Clockwise":"Anticlockwise");return;}
  if(page==CONNECTIONS){int old=connSelected;connSelected=(connSelected+dir+2)%2;connectionRow(old);connectionRow(connSelected);return;}
  if(page==WIFI_MENU){int old=wifiSelected;wifiSelected=(wifiSelected+dir+WIFI_MENU_COUNT)%WIFI_MENU_COUNT;wifiRow(old);wifiRow(wifiSelected);return;}
- if(page==MV_MENU){int old=mvSelected;mvSelected=(mvSelected+dir+6)%6;makerRow(old);makerRow(mvSelected);return;}
+ if(page==MV_MENU){int old=mvSelected;mvSelected=(mvSelected+dir+7)%7;makerRow(old);makerRow(mvSelected);return;}
  if(page==KNOWN_WIFI){if(knownCount){int old=networkSelected;networkSelected=(networkSelected+dir+knownCount)%knownCount;knownNetworkRow(old);knownNetworkRow(networkSelected);}return;}
  if(page!=HOME)return;
  int old=selected;selected=(selected+dir+4)%4;
@@ -1028,8 +1181,17 @@ void choose(){
   return;
  }
 
- if(page==MAKERTAGS_MENU||page==RFID_MENU){
-  if(subSelected==0){scanMakerTagsMode=(page==MAKERTAGS_MENU);page=SCAN;scanResultVisible=false;scanLookupState=0;render();}
+ if(page==TAG_OPERATION){makerTagOperationChoose();return;}
+ if(page==MAKERTAGS_MENU){
+  const String action=makerTagChoice(subSelected);
+  if(action=="Scan MakerTag"){scanMakerTagsMode=true;page=SCAN;scanResultVisible=false;scanLookupState=0;}
+  else if(action=="Create MakerTag"){rbCategory=0;page=RB_CATEGORIES;}
+  else if(action=="Clean MakerTag"){opStart("clean");page=TAG_OPERATION;}
+  else if(action=="Remove MakerTag"){opStart("remove");page=TAG_OPERATION;}
+  render();return;
+ }
+ if(page==RFID_MENU){
+  if(subSelected==0){scanMakerTagsMode=false;page=SCAN;scanResultVisible=false;scanLookupState=0;render();}
   else if(subSelected<categoryCount()){
    if(page==MAKERTAGS_MENU && subSelected==1 &&
        mvPairVerified && mvCanWriteTags && mvCanSearchInventory){
@@ -1054,10 +1216,31 @@ void choose(){
  }
  if(page==MV_MENU){
   if(mvSelected==0){detailScroll=0;page=MV_STATUS;render();}
-  else if(mvSelected==1){detailScroll=0;mvStartHttpsTest();page=MV_TLS_TEST;render();}
-  else if(mvSelected==2){page=MV_PAIR;if(mvPairState!=2)mvStartPairing();render();}
-  else if(mvSelected==3){beginMakerVaultPortal();if(setupPortalRunning()){page=MAKERVAULT_SETUP;render();}}
-  else if(mvSelected==4){page=MV_CA_REMOVE;render();}
+  else if(mvSelected==1){
+   // Avoid interrupting a physical NFC clean, registration or browser handoff.
+   bool busyTag=(regState==1||regState==2||regState==4||regState==6||
+                  remoteLookupState==1||remoteLookupState==2);
+#if MAKERVAULT_NDEF_WRITER_ENABLED
+   busyTag=busyTag||(ndefState==1||ndefState==2||ndefState==4||ndefState==8||
+                     (opState!=0 && opState!=9 && opState!=10));
+#endif
+   if(!busyTag && (mvReconnectState==1 || mvReconnectState==2)){
+    page=MV_RECONNECT;render();
+   }else if(!busyTag && !wifiManualOffline && mvReconnectServer()){
+    // Existing WiFiMulti fallback handles saved networks if needed.
+    lastReconnectTry=millis()-12001UL;
+    page=MV_RECONNECT;render();
+   }else{
+    simple("Reconnect server",busyTag?"Finish tag task":
+           (wifiManualOffline?"Wi-Fi set offline":"Unable to reconnect"),
+           busyTag?"Try again after":
+           (wifiManualOffline?"Enable Wi-Fi first":"Check saved pairing"));
+   }
+  }
+  else if(mvSelected==2){detailScroll=0;mvStartHttpsTest();page=MV_TLS_TEST;render();}
+  else if(mvSelected==3){page=MV_PAIR;if(mvPairState!=2)mvStartPairing();render();}
+  else if(mvSelected==4){beginMakerVaultPortal();if(setupPortalRunning()){page=MAKERVAULT_SETUP;render();}}
+  else if(mvSelected==5){page=MV_CA_REMOVE;render();}
   else {page=MV_FORGET;render();}
   return;
  }
@@ -1070,11 +1253,17 @@ void choose(){
  if(page==MV_FORGET){if(mvForgetLocalPairing()){page=MV_MENU;render();}else {page=MV_MENU;render();}return;}
  if(page==MV_PAIR){if(mvPairState!=2)mvStartPairing();render();return;}
  if(page==MV_STATUS){mvRequestCheck();render();return;}
+ if(page==MV_RECONNECT){
+  if(mvReconnectState==4){if(mvReconnectServer())render();}
+  else if(mvReconnectState==3 || mvReconnectState==0){page=MV_MENU;render();}
+  return;
+ }
  if(page!=HOME)return;
  page=(selected==0)?MAKERTAGS_MENU:(selected==1?RFID_MENU:(selected==2?CONNECTIONS:INFO));subSelected=0;
  Serial.print("[MENU] Selected: ");Serial.println(choices[selected]);render();
 }
 void back(){
+ if(page==MV_RECONNECT){page=MV_MENU;render();return;}
  if(page==RB_LETTER){page=RB_LIST;render();return;}
  if(page==RB_PREVIEW){
   if(rbBeginStatus==1){rbBeginStatus=0;rbBeginCancel=false;}
@@ -1083,6 +1272,13 @@ void back(){
  }
  if(page==RB_LIST){rbEpoch++;rbStatus=0;page=RB_CATEGORIES;render();return;}
  if(page==RB_CATEGORIES){page=MAKERTAGS_MENU;subSelected=0;render();return;}
+ if(page==TAG_OPERATION){
+  if(opState==5||opState==6||opState==7||opState==12||opState==13||opState==14||opState==15){
+   opError="Clean may be incomplete";makerTagOperationScreen();return;
+  }
+  if(mvTask && (opState==3||opState==4)){opError="Finishing server check";makerTagOperationScreen();return;}
+  opCancel();page=MAKERTAGS_MENU;render();return;
+ }
 
 #if MAKERVAULT_NDEF_WRITER_ENABLED
  if(page==NDEF_WRITE){ndefReset(ndefState!=6);page=MAKERTAGS_MENU;render();return;}
@@ -1145,6 +1341,7 @@ void processInputs(){
    render();return;
   }
 #endif
+  if(page==TAG_OPERATION){makerTagOperationChoose();return;}
   if(page==REGISTRATION && (regState==2||regState==6)){regSubmit(regUid,regKind);registrationScreen();return;}
   if(page==REGISTRATION && regState==4){regReset();page=MAKERTAGS_MENU;render();return;}
   if(page==RB_CATEGORIES||page==RB_LIST||page==RB_LETTER||page==RB_PREVIEW)choose();
@@ -1202,15 +1399,16 @@ void readerInit(){
 void pollTag(){
 #if MAKERVAULT_NDEF_WRITER_ENABLED
  const bool ndefScanning=(page==NDEF_WRITE && (ndefState==1 || ndefState==4 || ndefState==8));
+ const bool opScanning=(page==TAG_OPERATION && (opState==1 || opState==5 || opState==6 || opState==17));
  if(!ndefScanning && ndefState!=0 && page==NDEF_WRITE)return;
 #else
- const bool ndefScanning=false;
+ const bool ndefScanning=false,opScanning=false;
 #endif
- if((!ndefScanning && page!=SCAN && !(page==REGISTRATION && regState==1) && !(page==LOOKUP_REQUEST && remoteLookupState==1))||(page==SCAN && scanResultVisible)||(uint32_t)(millis()-lastPoll)<100)return;
+ if((!ndefScanning && !opScanning && page!=SCAN && !(page==REGISTRATION && regState==1) && !(page==LOOKUP_REQUEST && remoteLookupState==1))||(page==SCAN && scanResultVisible)||(uint32_t)(millis()-lastPoll)<100)return;
  lastPoll=millis();digitalWrite(TFT_CS,HIGH);
  bool cardReady=false;
 #if MAKERVAULT_NDEF_WRITER_ENABLED
- if(ndefScanning && ndefAutoFlow){
+ if((ndefScanning && ndefAutoFlow) || (opScanning && (opState==5 || opState==6 || opState==17))){
    // A tag already scanned during registration may be in HALT, not IDLE.
    // REQA (IsNewCardPresent) only sees IDLE tags. WUPA is required to
    // reselect the SAME still-present tag without a second physical tap.
@@ -1227,6 +1425,11 @@ void pollTag(){
  uid.toUpperCase();recentUid=uid;
  recentType=String(rfid.PICC_GetTypeName(rfid.PICC_GetType(rfid.uid.sak)));
 #if MAKERVAULT_NDEF_WRITER_ENABLED
+ if(opScanning){
+  opScan(rfid,uid);
+  rfid.PICC_HaltA();rfid.PCD_StopCrypto1();
+  makerTagOperationScreen();return;
+ }
  if(ndefScanning){
   if(ndefState==8){
    MakerVaultRc522PageIO io(rfid);
@@ -1408,8 +1611,65 @@ void pollTag(){
  Serial.printf("[RFID] UID=%s, Type=%s\n",recentUid.c_str(),recentType.c_str());
  scanPage();
 }
+// Emergency protection against the long-idle TLS heap exhaustion seen on
+// physical ESP32-S3 terminals. This is a controlled reboot, not a heap
+// allocator purge and not a substitute for fixing the TLS retention issue.
+MakerVaultMemoryRecovery::Guard memoryRecoveryGuard;
+uint32_t memoryRecoveryLastCheck = 0;
+uint32_t memoryDiagnosticLastLog = 0;
+void memoryDiagnosticLoop() {
+  const uint32_t now = millis();
+  if ((uint32_t)(now - memoryDiagnosticLastLog) < 30000UL || mvTask) return;
+  memoryDiagnosticLastLog = now;
+  // Measured outside mvHttps, after the task normally exits. The number of
+  // active RTOS tasks helps distinguish delayed task cleanup from TLS retention.
+  Serial.printf("[HEAP IDLE] uptime_ms=%lu https_done=%lu tasks=%u free=%u largest=%u min_free=%u\n",
+    (unsigned long)now, (unsigned long)mvHttpsCompletedCount,
+    (unsigned)uxTaskGetNumberOfTasks(),
+    (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+    (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+    (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+}
+
+
+void memoryRecoveryLoop() {
+  const uint32_t now = millis();
+  if ((uint32_t)(now - memoryRecoveryLastCheck) <
+      MakerVaultMemoryRecovery::kCheckIntervalMs) return;
+  memoryRecoveryLastCheck = now;
+
+  const size_t freeHeap = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  const size_t largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+
+  // Do not reboot while a TLS worker, pairing/provisioning or physical tag
+  // workflow is in progress. This protects writes, verified erasures and
+  // server-side completion steps from an unexpected local reset.
+  bool safeToRestart = !mvTask && !mvTestRunning &&
+      mvPairState != 1 && mvPairState != 2 &&
+      !setupAPActive && !lanPortalActive &&
+      regState == 0 && remoteLookupState == 0;
+#if MAKERVAULT_NDEF_WRITER_ENABLED
+  safeToRestart = safeToRestart && ndefState == 0 && opState == 0;
+#endif
+  const bool previouslyLow = memoryRecoveryGuard.lowSeen;
+  const bool restart = memoryRecoveryGuard.check(now, freeHeap, largestBlock, safeToRestart);
+  if (memoryRecoveryGuard.lowSeen && !previouslyLow)
+    Serial.printf("[MEMORY] Low heap detected: free=%u largest=%u; awaiting sustained low memory and safe idle\n",
+                  (unsigned)freeHeap, (unsigned)largestBlock);
+  else if (!memoryRecoveryGuard.lowSeen && previouslyLow)
+    Serial.println("[MEMORY] Heap recovered; cancelled low-memory reboot");
+
+  if (!restart) return;
+  Serial.printf("[MEMORY] Recovery reboot: free=%u largest=%u uptime_ms=%lu; no active NFC or TLS work\n",
+                (unsigned)freeHeap, (unsigned)largestBlock, (unsigned long)now);
+  Serial.flush();
+  delay(100);
+  esp_restart(); // Restores TLS memory and reconnects using saved Wi-Fi / pairing settings.
+}
+
 void setup(){
  bootAt=millis();Serial.begin(115200);
+  Serial.printf("[SYSTEM] Reset reason=%d (esp_reset_reason)\n", (int)esp_reset_reason());
  led.begin();led.setBrightness(0);led.clear();led.show();
  pinMode(TFT_CS,OUTPUT);digitalWrite(TFT_CS,HIGH);
  pinMode(RFID_CS,OUTPUT);digitalWrite(RFID_CS,HIGH);
@@ -1453,18 +1713,30 @@ void loop(){
   }
  }
  provisioningLoop();
- mvLoop();mvHeartbeatLoop();
+ mvLoop();mvReconnectLoop();mvHeartbeatLoop();
+ pendingWorkPoll(page==HOME || page==MAKERTAGS_MENU || page==RFID_MENU);
  regScheduleCancel();
  regScheduleProbe();
  scanLookupDispatch();
  if(page==SCAN && scanResultVisible && cfsDetected)cfsSpoolLookupDispatch();
- regSchedulePoll();
+ // Consolidated into pendingWorkPoll().
  regCheckStatus();
  regDispatchSubmit();
  regSubmissionWatchdog();
  if(regServerClosed && page==REGISTRATION){regReset();page=MAKERTAGS_MENU;render();}
- remoteLookupPoll();
+ // Consolidated into pendingWorkPoll().
 #if MAKERVAULT_NDEF_WRITER_ENABLED
+ // Consolidated into pendingWorkPoll().
+ opScheduleWatch();
+ opDispatch();
+ if((opState==1 || opState==13) && (page==HOME || page==MAKERTAGS_MENU)){
+   page=TAG_OPERATION;lastPoll=0;render();
+ }
+ if(page==TAG_OPERATION){
+   static uint8_t lastOpDrawn=255;
+   if(lastOpDrawn!=opState){lastOpDrawn=opState;makerTagOperationScreen();}
+ }
+
  // A previous verified or failed NFC request must not block the next
  // confirmed registration. Do not discard an active, unverified operation.
  if(regState==4 && regAutoWriteId.length()==36 &&
@@ -1496,7 +1768,7 @@ void loop(){
    if(ndefState==2)ndefState=10;
   }
  }
- ndefSchedulePoll();
+ // Consolidated into pendingWorkPoll().
  ndefScheduleWatch();
  ndefScheduleCancel();
  ndefExpireLocal();
@@ -1523,10 +1795,29 @@ void loop(){
    if(pairedAt && (uint32_t)(millis()-pairedAt)>2300){pairedAt=0;page=MV_MENU;render();}
   }
  }
+ // Repaint the connection page when a manual reconnect or background
+ // verification changes status. Preserve the user's scroll position.
+ if(page==MV_RECONNECT){
+  static uint8_t displayedReconnect=255;
+  uint8_t phase=mvReconnectState;
+  if(displayedReconnect!=phase){displayedReconnect=phase;mvReconnectPage();}
+ }
+ if(page==MV_STATUS){
+  static uint8_t lastMvStatusDrawn=255;
+  static wl_status_t lastWifiStatusDrawn=WL_IDLE_STATUS;
+  uint8_t state=mvCheckState;
+  wl_status_t wifi=WiFi.status();
+  if(lastMvStatusDrawn!=state || lastWifiStatusDrawn!=wifi){
+   lastMvStatusDrawn=state;lastWifiStatusDrawn=wifi;
+   mvStatusPage();
+  }
+ }
  if(page==MV_TLS_TEST){
   static uint32_t lastTestDrawn=0;
   if(lastTestDrawn!=mvTestCompleted){lastTestDrawn=mvTestCompleted;detailScroll=0;mvTlsTestPage();}
  }
  if(page==SETUP_WIFI && !setupAPActive){page=WIFI_MENU;render();}
  if(page==MAKERVAULT_SETUP && !setupPortalRunning()){page=MV_MENU;render();}
+  memoryDiagnosticLoop();
+  memoryRecoveryLoop();
 }

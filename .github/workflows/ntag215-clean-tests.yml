@@ -1,0 +1,27 @@
+name: NTAG215 clean safety tests
+
+on:
+  pull_request:
+    paths:
+      - 'firmware/rfid-terminal/MakerVault_Terminal_Firmware/ntag215_clean.h'
+      - 'firmware/rfid-terminal/MakerVault_Terminal_Firmware/ntag215_page_transaction.h'
+      - 'firmware/rfid-terminal/MakerVault_Terminal_Firmware/ntag215_write_policy.h'
+      - 'tests/ntag215_clean_test.cpp'
+      - '.github/workflows/ntag215-clean-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  clean-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run physical memory policy fixtures
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror -pedantic tests/ntag215_clean_test.cpp -o /tmp/ntag215_clean_test
+          /tmp/ntag215_clean_test
+          g++ -std=c++17 -Wall -Wextra -Werror -pedantic tests/ntag215_page_transaction_test.cpp -o /tmp/ntag215_page_transaction_test
+          /tmp/ntag215_page_transaction_test

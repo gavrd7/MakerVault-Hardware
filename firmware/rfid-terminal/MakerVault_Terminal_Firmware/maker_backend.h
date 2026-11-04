@@ -6,8 +6,11 @@
 #include <Preferences.h>
 #include <time.h>
 #include <esp_system.h>
+#include <esp_heap_caps.h>
 #include <mbedtls/x509.h>
 #include <esp32_cert_bundle.h>  // Install ESP32CertBundle (Arduino-ESP32 v3.x)
+#include <esp_http_client.h>
+#include <esp_crt_bundle.h>
 
 // HTTPS only, with user-provided CA certificate; never skips TLS verification.
 Preferences mvPrefs;
@@ -49,10 +52,21 @@ String mvTestError="Not tested", mvTestDetail="", mvTestTrust="";
 // Dedicated snapshot of the most recent manual test; background checks never update it.
 
 uint8_t mvTlsStatus=0; // 0 unknown, 1 verified, 2 rejected, 3 transport failure
+// Diagnostics only: sampled from loop after the HTTPS worker exits.
+volatile uint32_t mvHttpsCompletedCount=0;
 String mvTrustMode(){return mvCaPem.isEmpty()?"Public CA bundle":"Custom CA";}
 String mvTlsErrorText(WiFiClientSecure &client,int httpCode){
  char detail[192]={0};int tlsErr=client.lastError(detail,sizeof(detail));
  mvTlsDetail=String("HTTPClient ")+String(httpCode)+" ("+HTTPClient::errorToString(httpCode)+") / TLS "+String(tlsErr)+" ("+String(detail)+")";
+ // An SSL allocator error is not a rejected certificate or bad Wi-Fi credentials.
+ String lowerDetail=String(detail);lowerDetail.toLowerCase();
+ if(lowerDetail.indexOf("alloc")>=0 || lowerDetail.indexOf("memory")>=0){
+   mvTlsStatus=3;
+   Serial.printf("[TLS] Allocation failure: free internal=%u largest internal=%u\n",
+      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
+      (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+   return "TLS memory exhausted";
+ }
  Serial.printf("[TLS] %s\n",mvTlsDetail.c_str());
  // Only classify a certificate issue when mbedTLS explicitly identifies one.
  if(tlsErr==MBEDTLS_ERR_X509_CERT_VERIFY_FAILED){mvTlsStatus=2;return "Certificate rejected (trust/name/date)";}
@@ -217,48 +231,196 @@ String mvRandomProof(){
  uint16_t tail=(uint16_t(raw[30])<<8)|raw[31];encoded+=alphabet[(tail>>10)&63];encoded+=alphabet[(tail>>4)&63];encoded+=alphabet[(tail&15)<<2];
  return encoded;
 }
-bool mvTimeReady(){configTime(0,0,"pool.ntp.org","time.cloudflare.com");
- for(int i=0;i<28;i++){if(time(nullptr)>1760000000)return true;vTaskDelay(pdMS_TO_TICKS(250));}
+// SNTP is configured once per boot. Reconfiguring it on every periodic
+// HTTPS /me verification needlessly tears down and reallocates resources.
+bool mvTimeReady(){
+ if(time(nullptr)>1760000000)return true;
+ static bool ntpConfigured=false;
+ if(!ntpConfigured){
+   configTime(0,0,"pool.ntp.org","time.cloudflare.com");
+   ntpConfigured=true;
+ }
+ for(int i=0;i<28;i++){
+   if(time(nullptr)>1760000000)return true;
+   if(WiFi.status()!=WL_CONNECTED)return false;
+   vTaskDelay(pdMS_TO_TICKS(250));
+ }
  return false;
 }
-int mvHttps(const String &path,const String &method,const String &body,String &response,bool bearer){
- response="";
- // Per-request diagnostics: never allow an earlier TLS failure to survive a new request.
- mvTlsDetail="";
- mvTlsStatus=0;
- mvLastConnectionError="Not tested";
- if(WiFi.status()!=WL_CONNECTED){mvTlsStatus=3;mvLastConnectionError="Wi-Fi offline";return -1000;}
- if(!mvValidUrl(mvBaseUrl)){mvTlsStatus=3;mvLastConnectionError="Invalid HTTPS URL";return -1001;}
- // Fail closed BEFORE DNS, TCP and HTTP for a bearer request on a changed URL.
- // This applies to /me, heartbeats and manual Test HTTPS equally.
- if(bearer && !mvApiKey.isEmpty() && !mvEndpointApproved()){
-   mvTlsStatus=0;mvLastConnectionError="Credential locked to original server";
-   mvTlsDetail="Stored key remains saved; restore original URL or pair with new server";
-   Serial.println("[MAKERVAULT] Bearer request blocked: server URL differs from approved origin");
-   return -1004;
- }
- // Resolve the hostname before the TLS handshake so DNS failures aren't mistaken
- // for certificate failures. HTTPS connections still use the original hostname.
- String host=mvBaseUrl.substring(8);int cut=host.indexOf('/');if(cut>=0)host=host.substring(0,cut);
- int port=host.lastIndexOf(':');if(port>0)host=host.substring(0,port);
- if(host.isEmpty()){mvLastConnectionError="Invalid hostname";mvTlsStatus=3;return -1001;}
- IPAddress resolved;if(WiFi.hostByName(host.c_str(),resolved)!=1){mvLastConnectionError="Cannot resolve server";mvTlsStatus=3;mvTlsDetail="DNS lookup failed";Serial.println("[TLS] DNS resolution failed");return -1003;}
- WiFiClientSecure client;
- if(mvCaPem.length())client.setCACert(mvCaPem.c_str());else client.setCACertBundle(x509_crt_bundle,x509_crt_bundle_len);
- client.setTimeout(4);HTTPClient http;http.setTimeout(4500);
- if(!http.begin(client,mvBaseUrl+path)){mvLastConnectionError="Invalid HTTPS request";mvTlsStatus=3;return -1001;}
- http.addHeader("Accept","application/json");
- if(bearer&&mvApiKey.length())http.addHeader("Authorization","Bearer "+mvApiKey);
- int code;
- if(method=="POST"){http.addHeader("Content-Type","application/json");code=http.POST(body);}else code=http.GET();
- if(code>0){mvSaveHttpStatus(code);response=http.getString();if(response.length()>4096){response="";code=-1002;mvLastConnectionError="Response too large";mvTlsStatus=3;}}
- else mvLastConnectionError=mvTlsErrorText(client,code);
- http.end();return code;
+// One HTTPS transport shared by the existing single mvTask request slot.
+// Keep-alive is safe only while the base URL and trust material are unchanged.
+// HTTPClient::end() clears request headers, but preserves a reusable socket.
+// Single transport handle shared by the existing serialized mvTask HTTP calls.
+// This replaces Arduino HTTPClient/WiFiClientSecure with native ESP-IDF.
+// Keep the handle open for multiple requests. Never reuse it across a trust
+// or endpoint change; never replay a potentially mutating POST after failure.
+esp_http_client_handle_t mvIdfHttp=nullptr;
+String mvSessionOrigin="",mvSessionCa="";
+bool mvSessionConfigured=false;
+uint32_t mvSessionHandshakeCount=0,mvSessionReuseCount=0,mvSessionResetCount=0;
+uint32_t mvIdfRequestConnects=0;
+bool mvIdfResponseOverflow=false;
+String *mvIdfResponseTarget=nullptr;
+constexpr size_t MV_IDF_RESPONSE_MAX=4096;
+
+esp_err_t mvIdfHttpEvent(esp_http_client_event_t *event){
+  if(event->event_id==HTTP_EVENT_ON_CONNECTED)++mvIdfRequestConnects;
+  if(event->event_id==HTTP_EVENT_ON_DATA && event->data && event->data_len>0){
+    if(!mvIdfResponseTarget)return ESP_OK;
+    if((size_t)event->data_len>MV_IDF_RESPONSE_MAX-mvIdfResponseTarget->length()){
+      mvIdfResponseOverflow=true;
+      return ESP_FAIL;
+    }
+    // append with explicit size, including binary-safe length checking.
+    if(!mvIdfResponseTarget->concat((const char *)event->data,(unsigned int)event->data_len)){
+      mvIdfResponseOverflow=true;
+      return ESP_FAIL;
+    }
+  }
+  return ESP_OK;
 }
 
-void mvPairTask(void *){
+void mvResetHttpsSession(const char *reason){
+  // Call only from the existing serial HTTP worker, never concurrently.
+  if(mvIdfHttp){esp_http_client_cleanup(mvIdfHttp);mvIdfHttp=nullptr;}
+  mvIdfResponseTarget=nullptr;
+  mvSessionConfigured=false;mvSessionOrigin="";mvSessionCa="";
+  ++mvSessionResetCount;
+  Serial.printf("[TLS SESSION] reset=%lu reason=%s\n",
+      (unsigned long)mvSessionResetCount,reason);
+}
+
+bool mvIdfInitSession(){
+  // Unlike HTTPClient, IDF accepts the configured custom root PEM directly.
+  // For public CAs use the bundled roots already shipped with this sketch.
+  if(mvCaPem.isEmpty()){
+    esp_err_t bundle=esp_crt_bundle_set(x509_crt_bundle,x509_crt_bundle_len);
+    if(bundle!=ESP_OK){
+      mvTlsDetail=String("Public CA bundle failed: ")+esp_err_to_name(bundle);
+      mvLastConnectionError="Public CA unavailable";mvTlsStatus=3;
+      return false; // Never fall back to an unverified connection.
+    }
+  }
+  esp_http_client_config_t cfg={};
+  cfg.url=mvBaseUrl.c_str();
+  cfg.event_handler=mvIdfHttpEvent;
+  cfg.timeout_ms=4500;
+  cfg.disable_auto_redirect=true;
+  cfg.keep_alive_enable=true;
+  cfg.keep_alive_idle=10;
+  cfg.keep_alive_interval=5;
+  cfg.keep_alive_count=3;
+  cfg.cert_pem=mvCaPem.length()?mvCaPem.c_str():nullptr;
+  cfg.crt_bundle_attach=mvCaPem.length()?nullptr:esp_crt_bundle_attach;
+  // A failed session must never silently skip hostname verification.
+  cfg.skip_cert_common_name_check=false;
+  mvIdfHttp=esp_http_client_init(&cfg);
+  if(!mvIdfHttp){
+    mvTlsStatus=3;mvLastConnectionError="HTTPS client allocation failed";
+    return false;
+  }
+  mvSessionOrigin=mvBaseUrl;mvSessionCa=mvCaPem;
+  mvSessionConfigured=true;
+  return true;
+}
+
+int mvHttps(const String &path,const String &method,const String &body,String &response,bool bearer){
+  response="";
+  mvTlsDetail="";mvTlsStatus=0;mvLastConnectionError="Not tested";
+  if(WiFi.status()!=WL_CONNECTED){
+    if(mvSessionConfigured)mvResetHttpsSession("wifi offline");
+    mvTlsStatus=3;mvLastConnectionError="Wi-Fi offline";return -1000;
+  }
+  if(!mvValidUrl(mvBaseUrl)){mvTlsStatus=3;mvLastConnectionError="Invalid HTTPS URL";return -1001;}
+  if(bearer && !mvApiKey.isEmpty() && !mvEndpointApproved()){
+    if(mvSessionConfigured)mvResetHttpsSession("origin not approved");
+    mvTlsDetail="Stored key remains saved; restore original URL or pair with new server";
+    mvLastConnectionError="Credential locked to original server";
+    return -1004;
+  }
+  if(mvSessionConfigured && (mvSessionOrigin!=mvBaseUrl || mvSessionCa!=mvCaPem))
+    mvResetHttpsSession("endpoint or CA changed");
+  if(!mvSessionConfigured && !mvIdfInitSession())return -1003;
+  const size_t freeBefore=heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+  const size_t blockBefore=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+  const String url=mvBaseUrl+path;
+  int code=-1;
+  const uint8_t attempts=(method=="GET")?2:1;
+  for(uint8_t attempt=0;attempt<attempts;++attempt){
+    if(!mvSessionConfigured && !mvIdfInitSession())break;
+    const uint32_t connectsBefore=mvIdfRequestConnects;
+    if(esp_http_client_set_url(mvIdfHttp,url.c_str())!=ESP_OK){
+      mvTlsDetail="Invalid HTTPS request URL";mvLastConnectionError="Invalid HTTPS request";
+      mvTlsStatus=3;mvResetHttpsSession("set URL failed");break;
+    }
+    const bool post=method=="POST";
+    if(esp_http_client_set_method(mvIdfHttp,post?HTTP_METHOD_POST:HTTP_METHOD_GET)!=ESP_OK){
+      mvTlsDetail="Unsupported method";mvLastConnectionError="Invalid HTTPS request";
+      mvTlsStatus=3;mvResetHttpsSession("set method failed");break;
+    }
+    // Headers belong to the current request: clear stale authorization when
+    // pairing or other unauthenticated calls follow a bearer call.
+    if(bearer&&mvApiKey.length()){
+      const String token="Bearer "+mvApiKey;
+      esp_http_client_set_header(mvIdfHttp,"Authorization",token.c_str());
+    }else esp_http_client_delete_header(mvIdfHttp,"Authorization");
+    esp_http_client_set_header(mvIdfHttp,"Accept","application/json");
+    if(post){
+      esp_http_client_set_header(mvIdfHttp,"Content-Type","application/json");
+      esp_http_client_set_post_field(mvIdfHttp,body.c_str(),body.length());
+    }else{
+      esp_http_client_delete_header(mvIdfHttp,"Content-Type");
+      esp_http_client_set_post_field(mvIdfHttp,nullptr,0);
+    }
+    response="";
+    mvIdfResponseOverflow=false;mvIdfResponseTarget=&response;
+    const esp_err_t err=esp_http_client_perform(mvIdfHttp);
+    mvIdfResponseTarget=nullptr;
+    if(mvIdfRequestConnects>connectsBefore)++mvSessionHandshakeCount;
+    else ++mvSessionReuseCount;
+    if(err==ESP_OK && !mvIdfResponseOverflow){
+      code=esp_http_client_get_status_code(mvIdfHttp);
+      mvSaveHttpStatus(code);
+      break;
+    }
+    code=mvIdfResponseOverflow?-1002:-1;
+    if(mvIdfResponseOverflow){
+      mvTlsDetail="Response exceeded 4096 bytes";
+      mvLastConnectionError="Response too large";mvTlsStatus=3;
+    }else{
+      int tlsCode=0,verifyFlags=0;
+      const esp_err_t tlsResult=esp_http_client_get_and_clear_last_tls_error(mvIdfHttp,&tlsCode,&verifyFlags);
+      mvTlsDetail=String("ESP-IDF HTTP ")+esp_err_to_name(err)+
+        " TLS="+String(tlsCode)+" verify="+String(verifyFlags);
+      if(tlsCode==MBEDTLS_ERR_X509_CERT_VERIFY_FAILED || verifyFlags!=0){
+        mvTlsStatus=2;mvLastConnectionError="Certificate rejected (trust/name/date)";
+      }else{
+        mvTlsStatus=3;mvLastConnectionError="Secure connection failed";
+      }
+      Serial.printf("[TLS IDF] HTTP failure=%s TLS=%d verify=%d tls_info=%s\n",
+        esp_err_to_name(err),tlsCode,verifyFlags,esp_err_to_name(tlsResult));
+    }
+    // Retry only read-only GET once with a completely new, verified handle.
+    mvResetHttpsSession(mvIdfResponseOverflow?"oversize response":"request failed");
+    response="";
+    if(!post && attempt==0){mvTlsStatus=0;mvTlsDetail="";continue;}
+    break;
+  }
+  const size_t freeAfter=heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+  const size_t blockAfter=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+  Serial.printf("[TLS HEAP] %s %s HTTP=%d free=%u->%u delta=%ld largest=%u->%u\n",
+    method.c_str(),path.c_str(),code,(unsigned)freeBefore,(unsigned)freeAfter,
+    (long)freeAfter-(long)freeBefore,(unsigned)blockBefore,(unsigned)blockAfter);
+  Serial.printf("[TLS SESSION] opened=%lu reused=%lu resets=%lu active=%d backend=ESP-IDF\n",
+    (unsigned long)mvSessionHandshakeCount,(unsigned long)mvSessionReuseCount,
+    (unsigned long)mvSessionResetCount,(int)(mvIdfHttp!=nullptr));
+  ++mvHttpsCompletedCount;
+  return code;
+}
+
+void mvPairTaskRun(){
  // Pairing runs on a worker core. All live UI and RC522 operations stay in loop().
- if(!mvTimeReady()){mvPairError="Clock unavailable";mvPairState=4;mvTask=nullptr;vTaskDelete(nullptr);return;}
+ if(!mvTimeReady()){mvPairError="Clock unavailable";mvPairState=4;return;}
  mvPairSecret=mvRandomProof();mvPairId="";mvPairCode="";
  String body="{\"device_uid\":\""+mvDeviceUid+"\",\"device_type\":\"rfid_terminal\",\"claim_secret\":\""+mvPairSecret+"\"}";
  String response;int code=mvHttps("/api/device/v1/pairing/start/","POST",body,response,false);
@@ -319,15 +481,16 @@ void mvPairTask(void *){
   // Transient network/server issues are retried until expiry.
  }
  if(mvPairState==2){mvPairState=mvPairCancelled?0:5;mvPairError=mvPairCancelled?"":"Code expired";}
- mvPairSecret="";mvTask=nullptr;vTaskDelete(nullptr);
+ mvPairSecret="";
 }
+void mvPairTask(void *){mvPairTaskRun();mvTask=nullptr;vTaskDelete(nullptr);}
 void mvStartPairing(){
  if(mvTask||WiFi.status()!=WL_CONNECTED||!mvValidUrl(mvBaseUrl))return;
  mvPairCancelled=false;mvPairCode="";mvPairError="";mvPairState=1;
  if(xTaskCreatePinnedToCore(mvPairTask,"mv_pair",16384,nullptr,1,&mvTask,0)!=pdPASS){mvPairState=4;mvPairError="Insufficient memory";mvTask=nullptr;}
 }
 void mvCancelPairing(){mvPairCancelled=true;}
-void mvVerificationTask(void *){
+void mvVerificationTaskRun(){
  bool success=false;
  if(mvTimeReady()){
    String answer;int code=mvHttps("/api/device/v1/me/","GET","",answer,true);
@@ -341,9 +504,10 @@ void mvVerificationTask(void *){
    mvTlsStatus=3;mvLastConnectionError="Clock unavailable";
    Serial.println("[TLS] Accurate clock required for certificate verification");
  }
- mvCheckState=success?3:4;mvLastCheck=millis();mvTask=nullptr;vTaskDelete(nullptr);
+ mvCheckState=success?3:4;mvLastCheck=millis();
 }
-void mvTestHttpsTask(void *){
+void mvVerificationTask(void *){mvVerificationTaskRun();mvTask=nullptr;vTaskDelete(nullptr);}
+void mvTestHttpsTaskRun(){
  // Reset the captured result before this specific manual request.
  mvTlsDetail="";
  mvTlsStatus=0;
@@ -362,8 +526,8 @@ void mvTestHttpsTask(void *){
  Serial.printf("[TLS TEST] code=%d trust=%s result=%s\n",code,mvTestTrust.c_str(),mvTestError.c_str());
  mvTestRunning=false;
  mvTestCompleted++;
- mvTask=nullptr;vTaskDelete(nullptr);
 }
+void mvTestHttpsTask(void *){mvTestHttpsTaskRun();mvTask=nullptr;vTaskDelete(nullptr);}
 bool mvStartHttpsTest(){
  if(mvTask || mvTestRunning)return false;
  mvTestRunning=true;
@@ -376,6 +540,60 @@ bool mvStartHttpsTest(){
   mvTestRunning=false;mvTestError="Cannot start test";mvTestCompleted++;return false;
  }
  return true;
+}
+
+// A manual reconnect has its own visible state; the connection-status page
+// is not a progress screen. Keep persisted server URL, trusted CA and API key.
+// A Wi-Fi drop during a deliberate transport reset is expected, not a new
+// pairing or trust failure.
+volatile uint8_t mvReconnectState=0; // 0 idle, 1 Wi-Fi, 2 HTTPS, 3 ready, 4 failed
+uint32_t mvReconnectStarted=0;
+String mvReconnectError="";
+bool mvReconnectServer(){
+ if(mvReconnectState==1 || mvReconnectState==2 ||
+    mvTask || mvTestRunning || mvPairState==1 || mvPairState==2 ||
+    mvApiKey.isEmpty() || !mvEndpointApproved() || !mvValidUrl(mvBaseUrl))
+   return false;
+ mvPairVerified=false;mvClearScopes();mvCheckState=1;
+ mvLastCheck=0;mvHeartbeatAt=0;mvLastHttpCode=0;
+ mvTlsStatus=0;mvTlsDetail="";
+ mvReconnectError="";mvReconnectState=1;mvReconnectStarted=millis();
+ mvLastConnectionError="Reconnecting";
+ Serial.printf("[MAKERVAULT] Reconnect requested: free internal=%u largest=%u\\n",
+   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
+   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+ mvResetHttpsSession("manual reconnect");
+ // Rebuild the STA TCP interface. The provisioning loop retains the saved
+ // networks and retries them if WiFi.reconnect() does not immediately work.
+ WiFi.disconnect(false,false);
+ WiFi.reconnect();
+ return true;
+}
+void mvReconnectLoop(){
+ if(mvReconnectState!=1 && mvReconnectState!=2)return;
+ if(WiFi.status()!=WL_CONNECTED){
+   if((uint32_t)(millis()-mvReconnectStarted)>45000UL){
+     mvReconnectError="Wi-Fi reconnect timed out";
+     mvReconnectState=4;
+     Serial.println("[MAKERVAULT] Reconnect timed out waiting for Wi-Fi");
+   }else mvReconnectState=1;
+   return;
+ }
+ // mvLoop() performs the existing /me task. Never start a competing TLS
+ // request while another device task owns the shared connection slot.
+ if(mvCheckState==3 && mvPairVerified){
+   mvReconnectState=3;
+   Serial.println("[MAKERVAULT] Reconnect verified");
+ }else if(mvCheckState==4 && mvLastCheck!=0){
+   mvReconnectError=mvLastConnectionError;
+   mvReconnectState=4;
+   Serial.printf("[MAKERVAULT] Reconnect failed: %s\\n",mvReconnectError.c_str());
+ }else if((uint32_t)(millis()-mvReconnectStarted)>60000UL){
+   mvReconnectError="HTTPS verification timed out";
+   mvReconnectState=4;
+ }else{
+   mvReconnectState=2;
+ }
 }
 
 void mvRequestCheck(){
@@ -393,7 +611,9 @@ void mvLoop(){
  if(mvTask)return;
  // Periodic, background verification; don't block the encoder or reader.
  // Failed HTTPS checks retry automatically without button interaction.
-  const uint32_t retryMs=(mvCheckState==3)?60000UL:15000UL;
+  // Heartbeats already confirm connectivity every minute. Reduce idle TLS
+  // handshake churn while still periodically refreshing revoked scopes.
+  const uint32_t retryMs=(mvCheckState==3)?180000UL:15000UL;
   if(mvLastCheck==0 || (uint32_t)(millis()-mvLastCheck)>retryMs)mvRequestCheck();
 }
 
@@ -402,15 +622,15 @@ const char* mvStatusName(){
 }
 
 // Heartbeats are issued off-thread, only for wizard-paired devices.
-void mvHeartbeatTask(void *){
+void mvHeartbeatTaskRun(){
  String reply;int code=mvHttps("/api/device/v1/heartbeat/","POST",
   String("{\"firmware_version\":\"")+MAKERVAULT_FIRMWARE_VERSION+"\",\"capabilities\":[\"rfid\",\"nfc\",\"wifi\""+String(MAKERVAULT_NDEF_WRITER_ENABLED?",\"ntag215_ndef_write\"":"")+"],\"status\":{\"wifi\":\"connected\",\"api\":\"ok\",\"hardware\":\"ok\"}}",reply,true);
  // Always record a status for diagnosis; the server updates last_seen only on 200.
  mvLastHttpCode=code;
  Serial.printf("[MAKERVAULT] heartbeat HTTP response: %d\n",code);
  if(code==401 || code==403){mvCheckState=4;mvPairVerified=false;mvClearScopes();}
- mvTask=nullptr;vTaskDelete(nullptr);
 }
+void mvHeartbeatTask(void *){mvHeartbeatTaskRun();mvTask=nullptr;vTaskDelete(nullptr);}
 void mvHeartbeatLoop(){
  if(mvPairState!=3||!mvPairVerified||!mvEndpointApproved()||mvTask||mvCheckState!=3||WiFi.status()!=WL_CONNECTED)return;
  // Zero means no heartbeat has been attempted since boot/pairing: send promptly.

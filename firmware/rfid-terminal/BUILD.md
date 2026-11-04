@@ -63,16 +63,18 @@ Open `MakerVault_Terminal_Firmware.ino`, select the ESP32-S3 serial port, compil
 
 **Do not use insecure TLS**, expose the LAN provisioning portal to the public internet, or commit actual Wi-Fi/API credentials.
 
-## Working vs planned
+## Working and supported in v1.0.0 release-candidate source
 
-Working: UID/type scanning of compatible RFID/NFC tags, multi-SSID 2.4 GHz Wi-Fi, MakerVault secure pairing-v1, CA management, HTTPS diagnostics, heartbeats, persistent credentials and TFT navigation.
+- Trusted HTTPS and eight-digit MakerVault Connected Devices pairing; native ESP-IDF `esp_http_client` with persistent TLS and strict local/public CA verification.
+- Terminal-initiated and browser-led MakerTag registration, reassignment, NFC URL writing/verification, cancellation, overwrite protection, record browsing with A–Z letter jump.
+- Clean registered writable NTAG215 NFC user data while retaining the MakerTag record; optionally clean before removing a registration. These operations require the matching MakerVault v1.5.0 app implementation.
+- Read-only CFS material information and experimental Bambu/Elegoo RFID decoding; third-party tag sector writing remains intentionally unsupported.
+- FreeRTOS worker cleanup to avoid retained C++ `String` allocations. The maintainer reports stable heap through a two-hour-plus idle validation run.
 
-Available on the draft connected-terminal branch alongside MakerVault PR #150: MakerTag UID resolution, browser-initiated registration and physical-confirmed reassignment, read-only browser lookup, cancellation and recovery. Not implemented: reading Creality CFS payload details, physical RFID/NDEF writing, OTA firmware update, comprehensive factory reset. The experimental hardware has not been independently certified.
+See [flashing and regression tests](FLASHING.md), [release notes](../../docs/TERMINAL_v1.0.0_RELEASE_NOTES.md) and [NFC writer safety](../../docs/ntag215-ndef-writer-safety.md). OTA updating is not supported by this release.
 
-## Version validation
+## Version and release asset validation
 
-The prior firmware v0.5.1.14 was merged to `main` and the owner confirmed the terminal displays its updated version, heartbeat reporting is correct, and RFID/NFC, Wi-Fi, HTTPS/pairing and controls work as previously tested. The `MakerVault_Terminal_Firmware` source-folder name is historical, not the firmware version.
+Source is prepared as **v1.0.0** for MakerVault **v1.5.0**. Published release assets are generated from a **tagged commit**, not from a draft PR. Check the exact resulting release tag and compare the startup serial banner, System info and MakerVault heartbeat firmware version. A normal update must preserve NVS (Wi-Fi networks, CA certificate and device pairing).
 
-## v0.6.0 connected-terminal release
-
-The released firmware identifies itself as **v0.6.0** in the sketch, System info and serial startup. The earlier **v0.5.1.14** firmware is still the published stable baseline. This candidate requires the coordinated MakerVault v1.4.0 application functionality (PR #150) for online lookup/registration/reassignment. The maintainer has already confirmed the earlier renamed-sketch candidate compiled and was flashed and tested physically; **v0.6.0 has been flashed and its version display confirmed by the maintainer** before publishing. No physical tag-memory writes are implemented.
+The publishing workflow produces an application binary, full flashing binaries and sketch ZIP, plus STL/STEP archives reused unchanged from previously released CAD assets. Third-party Arduino dependencies are installed separately and must match the versions above. Check that GitHub Actions succeeds and actual assets exist before announcing publication.

@@ -29,7 +29,7 @@ void remoteLookupSendTask(void*) {
 void remoteLookupPoll() {
  if(remoteLookupState!=0||regState!=0||mvTask||!mvPairVerified||!mvCanReadTags||
     !mvEndpointApproved()||WiFi.status()!=WL_CONNECTED||mvCheckState!=3)return;
- if((uint32_t)(millis()-remoteLookupLastPoll)<5000)return;
+ if((uint32_t)(millis()-remoteLookupLastPoll)<15000UL)return;
  remoteLookupLastPoll=millis();
  if(xTaskCreatePinnedToCore(remoteLookupPollTask,"lookup_poll",12288,nullptr,1,&mvTask,0)!=pdPASS)
   mvTask=nullptr;
