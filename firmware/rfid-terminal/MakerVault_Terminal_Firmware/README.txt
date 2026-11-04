@@ -1,4 +1,4 @@
-MakerVault Terminal v1.0.0 — Arduino sketch
+MakerVault Terminal v1.0.1 — Arduino sketch
 ==========================================
 
 This directory is the complete MakerVault Terminal sketch source. Open
@@ -9,7 +9,7 @@ are installed separately; see ../../BUILD.md and ../../FLASHING.md.
 Tested target: ESP32-S3 SuperMini, RC522 SPI, ST7735S 128x128 colour TFT,
 KY-040 encoder and Back/Confirm buttons. Keep the documented GPIO wiring.
 
-Features in the matching v1.0.0 release-candidate source:
+Features in the matching v1.0.1 release-candidate source:
 - Verified HTTPS and 8-digit Connected Devices pairing with scoped API keys.
 - Native ESP-IDF esp_http_client transport with reusable TLS session; one
   authenticated 5-second pending-work poll, heartbeat and status verification.
