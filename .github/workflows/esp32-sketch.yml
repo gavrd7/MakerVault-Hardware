@@ -36,7 +36,7 @@ jobs:
           set -euo pipefail
           version_file="firmware/rfid-terminal/MakerVault_Terminal_Firmware/firmware_version.h"
           version="$(sed -nE 's/^#define MAKERVAULT_FIRMWARE_VERSION "([^"]+)"/\1/p' "$version_file")"
-          if [[ ! "$version" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+$ ]]; then
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::Invalid or missing firmware version in $version_file"
             exit 1
           fi
