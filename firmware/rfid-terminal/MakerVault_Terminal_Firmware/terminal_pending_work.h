@@ -3,6 +3,9 @@
 // granted by this snapshot: every action retains its existing per-request
 // HTTPS status check, UID binding and physical confirmation.
 uint32_t pendingWorkChecked=0;
+uint32_t pendingWorkInterval=5000UL;
+volatile int pendingWorkLastCode=0; // 200 ready, 404 app upgrade needed, 403 scopes
+
 
 // Extract a top-level JSON object safely even when it contains nested target
 // structures or escaped strings. The server returns null when no work exists.
@@ -35,6 +38,14 @@ String pendingWorkObject(const String &json,const char *name){
 void pendingWorkTask(void *){
  String body;
  const int code=mvHttps("/api/device/v1/pending-work/","GET","",body,true);
+ // Back off on failures instead of repeatedly exhausting TLS allocations.
+ // A missing endpoint indicates an older MakerVault app, not a broken pairing.
+ if(code!=pendingWorkLastCode)
+  Serial.printf("[PENDING] Combined work endpoint HTTP %d\n",code);
+ pendingWorkLastCode=code;
+ if(code==200)pendingWorkInterval=5000UL;
+ else if(code==403 || code==404)pendingWorkInterval=60000UL;
+ else pendingWorkInterval=min(uint32_t(60000),pendingWorkInterval*2UL);
  if(code==200 && regState==0 && remoteLookupState==0
 #if MAKERVAULT_NDEF_WRITER_ENABLED
     && ndefState==0 && opState==0
@@ -108,7 +119,7 @@ void pendingWorkPoll(bool idlePage){
 #if MAKERVAULT_NDEF_WRITER_ENABLED
  if(ndefState!=0 || opState!=0)return;
 #endif
- if((uint32_t)(millis()-pendingWorkChecked)<5000UL)return;
+ if((uint32_t)(millis()-pendingWorkChecked)<pendingWorkInterval)return;
  pendingWorkChecked=millis();
  if(xTaskCreatePinnedToCore(pendingWorkTask,"mv_pending",12288,nullptr,1,&mvTask,0)!=pdPASS)
    mvTask=nullptr;
