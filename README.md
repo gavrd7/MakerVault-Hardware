@@ -4,7 +4,7 @@
 
 The first supported project is the **MakerVault Terminal**: a handheld RFID/NFC reader and MakerTag writer that connects securely to your self-hosted MakerVault installation.
 
-**Current source:** MakerVault **v1.5.0** + MakerVault Terminal **v1.0.1** (release preparation; check published Releases). These are source versions under final verification; see [Releases](https://github.com/gavrd7/MakerVault-Hardware/releases) for published builds.
+**Compatible release sources:** MakerVault **v1.5.1** + MakerVault Terminal **v1.0.1**. Confirm published release assets in [Releases](https://github.com/gavrd7/MakerVault-Hardware/releases).
 
 ## MakerVault Terminal
 
@@ -22,7 +22,7 @@ A compact, 3D-printable handheld with a 128×128 colour display, rotary encoder,
 | **Browse large inventories** | Uses alphabetically sorted, paged server results, record IDs and a hold-to-open **A–Z letter jump**; no on-screen keyboard or full inventory download |
 | **Assign and reassign** | Assigns a new tag, recognises an existing MakerTag, and preserves its stable `MV-XXXXXXXX` identity on reassignment |
 | **NTAG215 NFC writing** | Writes and verifies the permanent MakerVault HTTPS record URL on supported writable NTAG215 tags |
-| **Clean / Remove MakerTag — #159 feature branch** | **Clean** clears and verifies physical NTAG215 NFC data while retaining the MakerVault record; **Remove** deletes the server registration without altering NFC memory; **Remove + clean** wipes first, then removes the registration. Requires matching draft application PR #165; included in the matching v1.0.1 release-candidate source; availability in published assets depends on the final tagged release |
+| **Clean / Remove MakerTag — #159 feature branch** | **Clean** clears and verifies physical NTAG215 NFC data while retaining the MakerVault record; **Remove** deletes the server registration without altering NFC memory; **Remove + clean** wipes first, then removes the registration. Requires the matching MakerVault v1.5.1 app; included in the matching v1.0.1 release-candidate source; availability in published assets depends on the final tagged release |
 | **Protected URL replacement** | Shows an additional **Back / Confirm** prompt before replacing a recognised unrelated HTTP(S) NFC URL; Back leaves it unchanged |
 | **Safety and recovery** | Enforces physical UID matching, tag compatibility/lock checks, server authorisation and expiry; supports cancellation and retry after incomplete writes |
 | **Other RFID tags** | Supports UID-only lookup/assignment for compatible MIFARE Classic 1K tags without modifying their sectors |
@@ -39,7 +39,7 @@ The terminal reads compatible **Creality CFS** material tags, shows the material
 
 ### Clean or remove a MakerTag (draft #159)
 
-The **`feature/makertag-clean` firmware branch** (companion MakerVault app PR #165) adds two distinct options to **Home → MakerTags**:
+The matching **Terminal v1.0.1 and MakerVault v1.5.1 releases** provide two distinct options to **Home → MakerTags**:
 
 1. **Clean MakerTag:** present a **registered writable NTAG215**, review the linked record, confirm, and present the *same* tag for erasure and verification. The physical user data is cleared; the MakerVault MakerTag registration, UID association and short URL **remain** so the tag can be programmed again later. An unregistered/blank tag is rejected as **Tag not registered**.
 2. **Remove MakerTag:** present a registered MakerTag, then answer **Clean NFC data too? Yes / No / Back**. **No** removes the server registration only, leaving any old NFC URL physically present (but no longer resolvable). **Yes** requires the original NTAG215 to be physically wiped and independently verified before the registration is removed. **Back** cancels.
@@ -50,7 +50,7 @@ Physical cleaning is supported only for writable, unprotected **NTAG215 MakerTag
 
 **Connection troubleshooting (v1.0.1 release candidate):** Use **Connections → MakerVault → Reconnect server** to refresh the Wi-Fi/TCP transport and reverify the saved HTTPS pairing without forgetting the server, CA or credentials. The terminal now shows **Joining saved Wi-Fi**, **Verifying HTTPS**, then **Connected** or an actionable **Failed** state; **OK** retries a failed attempt. Wi-Fi may briefly appear offline **during the deliberate transport reset**. **Test HTTPS** is diagnostic only and cannot reset the transport. Connection status shows free internal heap and largest available block to help investigate allocation failures. Idle verification no longer repeatedly reconfigures SNTP and is less frequent to reduce allocation churn. The previously reproducible ~96-byte-per-request idle-polling memory leak is **not reproduced in the reported two-hour-plus ESP-IDF endurance run**; request buffers now unwind before FreeRTOS worker deletion. Wi-Fi, certificate and MakerTag workflows have also been reported passing the release test matrix. Continue monitoring on released hardware; this does not guarantee every environment is leak-free. The pending-work checks for browser registration, NFC writing, RFID lookup and Clean/Remove now share **one authenticated five-second poll** rather than four HTTPS polls; heartbeat and live safety checks remain separate. This requires the matching MakerVault app feature branch with the new `/api/device/v1/pending-work/` endpoint.
 
-The full step-by-step instructions are being updated in the [MakerVault user guide](https://gavrd7.github.io/MakerVault-docs/using/maker-tags/). **Release boundary:** these features are present in the matching v1.0.1 release-candidate source and MakerVault app PR #165, not necessarily in older published v1.0.1 binaries. Use the matching release assets when both PRs merge; do not assume an older downloaded binary contains later changes.
+The full step-by-step instructions are being updated in the [MakerVault user guide](https://gavrd7.github.io/MakerVault-docs/using/maker-tags/). **Release boundary:** these features are present in the matching Terminal v1.0.1 firmware and MakerVault v1.5.1 app. Use the compatible published release assets; older app versions may not offer the consolidated pending-work and Clean/Remove endpoints.
 
 ### A typical on-device workflow
 
