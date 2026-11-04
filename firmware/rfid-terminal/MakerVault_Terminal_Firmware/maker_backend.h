@@ -263,7 +263,7 @@ void mvResetHttpsSession(const char *reason){
   mvSessionOrigin="";
   mvSessionCa="";
   ++mvSessionResetCount;
-  Serial.printf("[TLS SESSION] reset=%lu reason=%s\\n",
+  Serial.printf("[TLS SESSION] reset=%lu reason=%s\n",
       (unsigned long)mvSessionResetCount,reason);
 }
 
@@ -356,10 +356,10 @@ int mvHttps(const String &path,const String &method,const String &body,String &r
  }
  const size_t freeAfter=heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
  const size_t blockAfter=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
- Serial.printf("[TLS HEAP] %s %s HTTP=%d free=%u->%u delta=%ld largest=%u->%u\\n",
+ Serial.printf("[TLS HEAP] %s %s HTTP=%d free=%u->%u delta=%ld largest=%u->%u\n",
    method.c_str(),path.c_str(),code,(unsigned)freeBefore,(unsigned)freeAfter,
    (long)freeAfter-(long)freeBefore,(unsigned)blockBefore,(unsigned)blockAfter);
- Serial.printf("[TLS SESSION] opened=%lu reused=%lu resets=%lu active=%d\\n",
+ Serial.printf("[TLS SESSION] opened=%lu reused=%lu resets=%lu active=%d\n",
    (unsigned long)mvSessionHandshakeCount,(unsigned long)mvSessionReuseCount,
    (unsigned long)mvSessionResetCount,(int)mvSessionClient.connected());
  ++mvHttpsCompletedCount;
