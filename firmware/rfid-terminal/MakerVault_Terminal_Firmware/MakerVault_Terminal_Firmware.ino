@@ -1616,6 +1616,21 @@ void pollTag(){
 // allocator purge and not a substitute for fixing the TLS retention issue.
 MakerVaultMemoryRecovery::Guard memoryRecoveryGuard;
 uint32_t memoryRecoveryLastCheck = 0;
+uint32_t memoryDiagnosticLastLog = 0;
+void memoryDiagnosticLoop() {
+  const uint32_t now = millis();
+  if ((uint32_t)(now - memoryDiagnosticLastLog) < 30000UL || mvTask) return;
+  memoryDiagnosticLastLog = now;
+  // Measured outside mvHttps, after the task normally exits. The number of
+  // active RTOS tasks helps distinguish delayed task cleanup from TLS retention.
+  Serial.printf("[HEAP IDLE] uptime_ms=%lu https_done=%lu tasks=%u free=%u largest=%u min_free=%u\n",
+    (unsigned long)now, (unsigned long)mvHttpsCompletedCount,
+    (unsigned)uxTaskGetNumberOfTasks(),
+    (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+    (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+    (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+}
+
 
 void memoryRecoveryLoop() {
   const uint32_t now = millis();
@@ -1654,6 +1669,7 @@ void memoryRecoveryLoop() {
 
 void setup(){
  bootAt=millis();Serial.begin(115200);
+  Serial.printf("[SYSTEM] Reset reason=%d (esp_reset_reason)\\n", (int)esp_reset_reason());
  led.begin();led.setBrightness(0);led.clear();led.show();
  pinMode(TFT_CS,OUTPUT);digitalWrite(TFT_CS,HIGH);
  pinMode(RFID_CS,OUTPUT);digitalWrite(RFID_CS,HIGH);
@@ -1802,5 +1818,6 @@ void loop(){
  }
  if(page==SETUP_WIFI && !setupAPActive){page=WIFI_MENU;render();}
  if(page==MAKERVAULT_SETUP && !setupPortalRunning()){page=MV_MENU;render();}
+  memoryDiagnosticLoop();
   memoryRecoveryLoop();
 }
