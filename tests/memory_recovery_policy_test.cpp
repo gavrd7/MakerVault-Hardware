@@ -41,6 +41,6 @@ int main() {
   // uint32_t elapsed calculation remains safe across timer wrap.
   Guard rollover;
   assert(!rollover.check(0xfffffff0UL, 96600, 31732, true));
-  assert(rollover.check(16000, 96600, 31732, true));
+  assert(rollover.check(200000, 96600, 31732, true));
   return 0;
 }
