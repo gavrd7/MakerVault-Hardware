@@ -28,34 +28,51 @@ jobs:
           arduino-cli lib install "Adafruit NeoPixel"
           arduino-cli lib install "MFRC522"
           arduino-cli lib install "ESP32CertBundle"
+      # Development artifacts are named from the sketch's single version
+      # source and the exact commit being built; no stale release labels.
+      - name: Determine development artifact version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version_file="firmware/rfid-terminal/MakerVault_Terminal_Firmware/firmware_version.h"
+          version="$(sed -nE 's/^#define MAKERVAULT_FIRMWARE_VERSION "([^"]+)"/\\1/p' "$version_file")"
+          if [[ ! "$version" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+$ ]]; then
+            echo "::error::Invalid or missing firmware version in $version_file"
+            exit 1
+          fi
+          short_sha="${GITHUB_SHA:0:7}"
+          echo "DEV_VERSION=$version" >> "$GITHUB_ENV"
+          echo "DEV_SHORT_SHA=$short_sha" >> "$GITHUB_ENV"
+          echo "DEV_ARTIFACT_PREFIX=makervault-terminal-v${version}-dev-${short_sha}" >> "$GITHUB_ENV"
       - name: Compile development sketch (NFC writing enabled by default)
         run: |
-          arduino-cli compile --fqbn esp32:esp32:esp32s3:PartitionScheme=huge_app \
-            --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1" \
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:PartitionScheme=huge_app \\
+            --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1" \\
             firmware/rfid-terminal/MakerVault_Terminal_Firmware
-      - name: Compile v0.8 development test binary
+      - name: Compile development firmware binaries
         run: |
-          arduino-cli compile --fqbn esp32:esp32:esp32s3:PartitionScheme=huge_app \
-            --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1" \
-            --output-dir ./dist/release \
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:PartitionScheme=huge_app \\
+            --build-property compiler.cpp.extra_flags="-DMAKERVAULT_ARDUINO_CI=1" \\
+            --output-dir ./dist/release \\
             firmware/rfid-terminal/MakerVault_Terminal_Firmware
 
-      - name: Upload v0.8 development firmware artifact
+      - name: Upload development firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: makervault-terminal-v0.8-dev-esp32s3
+          name: ${{ env.DEV_ARTIFACT_PREFIX }}-esp32s3
           path: dist/release/*.bin
           if-no-files-found: error
 
-      - name: Package v0.8-dev Arduino source (writer enabled)
+      - name: Package development Arduino source (writer enabled)
         run: |
+          set -euo pipefail
           mkdir -p dist/source
           cp -a firmware/rfid-terminal/MakerVault_Terminal_Firmware dist/source/
           cd dist/source
-          zip -qr ../MakerVault_Terminal_v0.8_dev_Arduino.zip MakerVault_Terminal_Firmware
-      - name: Upload v0.8-dev Arduino sketch ZIP
+          zip -qr "../MakerVault-Terminal-v${DEV_VERSION}-dev-${DEV_SHORT_SHA}-Arduino-Sketch.zip" MakerVault_Terminal_Firmware
+      - name: Upload development Arduino sketch ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: makervault-terminal-v0.8-dev-arduino-sketch
-          path: dist/MakerVault_Terminal_v0.8_dev_Arduino.zip
+          name: ${{ env.DEV_ARTIFACT_PREFIX }}-arduino-sketch
+          path: dist/MakerVault-Terminal-v${{ env.DEV_VERSION }}-dev-${{ env.DEV_SHORT_SHA }}-Arduino-Sketch.zip
           if-no-files-found: error
