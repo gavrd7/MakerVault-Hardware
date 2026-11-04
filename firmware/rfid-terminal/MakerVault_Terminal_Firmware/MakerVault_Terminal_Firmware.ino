@@ -1669,7 +1669,7 @@ void memoryRecoveryLoop() {
 
 void setup(){
  bootAt=millis();Serial.begin(115200);
-  Serial.printf("[SYSTEM] Reset reason=%d (esp_reset_reason)\\n", (int)esp_reset_reason());
+  Serial.printf("[SYSTEM] Reset reason=%d (esp_reset_reason)\n", (int)esp_reset_reason());
  led.begin();led.setBrightness(0);led.clear();led.show();
  pinMode(TFT_CS,OUTPUT);digitalWrite(TFT_CS,HIGH);
  pinMode(RFID_CS,OUTPUT);digitalWrite(RFID_CS,HIGH);
