@@ -508,6 +508,7 @@ bool mvReconnectServer(){
  Serial.printf("[MAKERVAULT] Reconnect requested: free internal=%u largest=%u\\n",
    (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
    (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+ mvResetHttpsSession("manual reconnect");
  // Rebuild the STA TCP interface. The provisioning loop retains the saved
  // networks and retries them if WiFi.reconnect() does not immediately work.
  WiFi.disconnect(false,false);
