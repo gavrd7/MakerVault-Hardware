@@ -14,6 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Build and run low-memory recovery policy tests
+        run: |
+          c++ -std=c++11 -Wall -Wextra -Werror tests/memory_recovery_policy_test.cpp -o /tmp/makervault-memory-recovery-test
+          /tmp/makervault-memory-recovery-test
       - name: Build standalone NDEF URI tests
         run: |
           c++ -std=c++11 -Wall -Wextra -Werror \
