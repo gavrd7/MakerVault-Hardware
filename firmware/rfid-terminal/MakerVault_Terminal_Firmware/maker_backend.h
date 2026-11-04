@@ -265,22 +265,45 @@ int mvHttps(const String &path,const String &method,const String &body,String &r
  int port=host.lastIndexOf(':');if(port>0)host=host.substring(0,port);
  if(host.isEmpty()){mvLastConnectionError="Invalid hostname";mvTlsStatus=3;return -1001;}
  IPAddress resolved;if(WiFi.hostByName(host.c_str(),resolved)!=1){mvLastConnectionError="Cannot resolve server";mvTlsStatus=3;mvTlsDetail="DNS lookup failed";Serial.println("[TLS] DNS resolution failed");return -1003;}
- // Track memory fragmentation at the moment TLS resources are allocated.
- // This is diagnostics only; it never bypasses certificate validation.
- Serial.printf("[TLS] Starting: free internal=%u largest internal=%u\n",
-   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
-   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
- WiFiClientSecure client;
- if(mvCaPem.length())client.setCACert(mvCaPem.c_str());else client.setCACertBundle(x509_crt_bundle,x509_crt_bundle_len);
- client.setTimeout(4);HTTPClient http;http.setTimeout(4500);
- if(!http.begin(client,mvBaseUrl+path)){mvLastConnectionError="Invalid HTTPS request";mvTlsStatus=3;return -1001;}
- http.addHeader("Accept","application/json");
- if(bearer&&mvApiKey.length())http.addHeader("Authorization","Bearer "+mvApiKey);
- int code;
- if(method=="POST"){http.addHeader("Content-Type","application/json");code=http.POST(body);}else code=http.GET();
- if(code>0){mvSaveHttpStatus(code);response=http.getString();if(response.length()>4096){response="";code=-1002;mvLastConnectionError="Response too large";mvTlsStatus=3;}}
- else mvLastConnectionError=mvTlsErrorText(client,code);
- http.end();return code;
+ // Snapshot before and AFTER TLS objects go out of scope. Measuring
+ // before WiFiClientSecure is destroyed would count normal TLS allocations as
+ // leaked. Never include server credentials or response payload in logs.
+ const size_t freeBefore=heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+ const size_t blockBefore=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+ int code=-1001;
+ {
+   WiFiClientSecure client;
+   if(mvCaPem.length())client.setCACert(mvCaPem.c_str());
+   else client.setCACertBundle(x509_crt_bundle,x509_crt_bundle_len);
+   client.setTimeout(4);
+   HTTPClient http;
+   http.setTimeout(4500);
+   if(http.begin(client,mvBaseUrl+path)){
+     http.addHeader("Accept","application/json");
+     if(bearer&&mvApiKey.length())http.addHeader("Authorization","Bearer "+mvApiKey);
+     if(method=="POST"){
+       http.addHeader("Content-Type","application/json");
+       code=http.POST(body);
+     }else code=http.GET();
+     if(code>0){
+       mvSaveHttpStatus(code);
+       response=http.getString();
+       if(response.length()>4096){
+         response="";code=-1002;mvLastConnectionError="Response too large";mvTlsStatus=3;
+       }
+     }else mvLastConnectionError=mvTlsErrorText(client,code);
+     http.end();
+   }else{
+     mvLastConnectionError="Invalid HTTPS request";mvTlsStatus=3;
+   }
+   client.stop(); // explicitly release TLS transport before measuring
+ }
+ const size_t freeAfter=heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+ const size_t blockAfter=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+ Serial.printf("[TLS HEAP] %s %s HTTP=%d free=%u->%u delta=%ld largest=%u->%u\n",
+   method.c_str(),path.c_str(),code,(unsigned)freeBefore,(unsigned)freeAfter,
+   (long)freeAfter-(long)freeBefore,(unsigned)blockBefore,(unsigned)blockAfter);
+ return code;
 }
 
 void mvPairTask(void *){
