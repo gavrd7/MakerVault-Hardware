@@ -115,7 +115,7 @@ void pendingWorkTask(void *){
 void pendingWorkPoll(bool idlePage){
  if(!idlePage || mvTask || regState!=0 || remoteLookupState!=0 ||
     !mvPairVerified || !mvEndpointApproved() ||
-    !mvCanReadTags || mvCheckState!=3 || WiFi.status()!=WL_CONNECTED)return;
+    !(mvCanReadTags || mvCanWriteTags) || mvCheckState!=3 || WiFi.status()!=WL_CONNECTED)return;
 #if MAKERVAULT_NDEF_WRITER_ENABLED
  if(ndefState!=0 || opState!=0)return;
 #endif
