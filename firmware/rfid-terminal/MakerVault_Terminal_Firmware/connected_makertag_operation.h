@@ -63,7 +63,7 @@ void opPendingTask(void *){
 void opSchedulePoll(bool idlePage){
   if(!idlePage || opState!=0 || regState!=0 || remoteLookupState!=0 ||
      ndefState!=0 || mvTask || !opConnected())return;
-  if((uint32_t)(millis()-opLastPoll)<5000)return;
+  if((uint32_t)(millis()-opLastPoll)<15000UL)return;
   opLastPoll=millis();
   if(xTaskCreatePinnedToCore(opPendingTask,"mv_op_poll",12288,nullptr,1,&mvTask,0)!=pdPASS)
     mvTask=nullptr;
