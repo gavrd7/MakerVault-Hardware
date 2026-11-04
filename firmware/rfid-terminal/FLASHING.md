@@ -1,6 +1,6 @@
 # Flashing and validating the MakerVault handheld firmware
 
-This guide covers the **MakerVault Terminal v1.0.1 release-candidate source** for the matching **MakerVault v1.5.0** app. For published downloads, verify the final release tag and assets on [MakerVault-Hardware Releases](https://github.com/gavrd7/MakerVault-Hardware/releases). Earlier v0.5/v0.6 limitations no longer describe the current source.
+This guide covers the **MakerVault Terminal v1.0.1 release-candidate source** for the matching **MakerVault v1.5.1** app. For published downloads, verify the final release tag and assets on [MakerVault-Hardware Releases](https://github.com/gavrd7/MakerVault-Hardware/releases). Earlier v0.5/v0.6 limitations no longer describe the current source.
 
 ## Prepare Arduino IDE
 
@@ -22,7 +22,7 @@ With the enclosure open, watch Serial Monitor at **115200** and confirm TFT spla
 5. In **Connections → MakerVault**, set the **HTTPS** base URL. For a self-signed/private Local CA, import its **public CA certificate** via the setup workflow; never place a CA private key on the device. Run the built-in HTTPS test. No `setInsecure()` fallback should be used.
 6. On MakerVault: **Settings → User Account → Connected Devices → Add Device**. Start Pair Device on the handheld, then approve the displayed **eight-digit pairing code** in the web wizard before expiry. Verify paired status and heartbeat; reboot and check persistence. Credentials are stored in device NVS but **NVS encryption/secure boot were not verified**. Terminal-side Forget pairing is local-only; revoke from MakerVault if necessary.
 
-**v1.0.1 capabilities with MakerVault v1.5.0:** paired HTTPS using ESP-IDF persistent client, MakerTag scanning and record browsing, on-device/browser-led assignment and reassignment, verified NTAG215 NDEF URL writing, clean and clean-on-remove with physical confirmation, read-only Creality CFS decoding and experimental read-only Bambu/Elegoo paths. **Not implemented:** OTA and third-party filament-tag writing. Clean/remove requires the matching app PR #165 or an app release containing it.
+**v1.0.1 capabilities with MakerVault v1.5.1:** paired HTTPS using ESP-IDF persistent client, MakerTag scanning and record browsing, on-device/browser-led assignment and reassignment, verified NTAG215 NDEF URL writing, clean and clean-on-remove with physical confirmation, read-only Creality CFS decoding and experimental read-only Bambu/Elegoo paths. **Not implemented:** OTA and third-party filament-tag writing. Clean/remove requires MakerVault v1.5.1 or another app build containing the matching APIs.
 
 ## Troubleshooting
 

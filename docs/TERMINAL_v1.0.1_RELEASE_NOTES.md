@@ -2,7 +2,7 @@
 
 This maintenance release packages the validated v1.0 firmware with its corrected **1.0.1** version identifier. The release-tag validation requires the compiled firmware version to match the GitHub tag. No new terminal features were introduced solely by this version correction.
 
-The first full release of the handheld MakerVault RFID/NFC terminal, intended for MakerVault v1.5.0.
+The first full release of the handheld MakerVault RFID/NFC terminal, intended for MakerVault v1.5.1.
 
 ## Available now
 
@@ -10,7 +10,7 @@ The first full release of the handheld MakerVault RFID/NFC terminal, intended fo
 - Native ESP-IDF `esp_http_client` transport with persistent TLS, unified five-second pending-work polling, controlled reconnection and C++ worker-buffer cleanup. The maintainer's two-hour-plus idle test did not reproduce the previous ~96-byte-per-request heap leak
 - MakerTag scanning, assignment and reassignment, inventory browsing with A–Z jump, and stable MakerVault identifiers
 - Verified NTAG215 MakerTag URL writing with overwrite confirmation and cancellation protection
-- **Clean MakerTag**: clear and verify the physical NTAG215 NDEF user data while keeping the MakerTag record; **Remove MakerTag**: remove only the registration, or opt to clean and verify the same tag before removal. Requires the matching MakerVault app implementation in PR #165
+- **Clean MakerTag**: clear and verify the physical NTAG215 NDEF user data while keeping the MakerTag record; **Remove MakerTag**: remove only the registration, or opt to clean and verify the same tag before removal. Requires the MakerVault v1.5.1 app implementation
 - Browser-initiated terminal scans and physical spool UID registration
 - Read-only Creality CFS filament ID, HEX colour and physical spool UID lookup, including offline fallback and 1- or 2-tag MakerVault spool identification
 - **Experimental** Bambu Lab MIFARE Classic and Elegoo NTAG RFID readers, based on public formats. Their decoders have synthetic software tests, **not real manufacturer tag validation**. A protected or unknown tag can fall back to generic UID display. No Bambu or Elegoo tag writing.

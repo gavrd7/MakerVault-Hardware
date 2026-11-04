@@ -67,7 +67,7 @@ Open `MakerVault_Terminal_Firmware.ino`, select the ESP32-S3 serial port, compil
 
 - Trusted HTTPS and eight-digit MakerVault Connected Devices pairing; native ESP-IDF `esp_http_client` with persistent TLS and strict local/public CA verification.
 - Terminal-initiated and browser-led MakerTag registration, reassignment, NFC URL writing/verification, cancellation, overwrite protection, record browsing with A–Z letter jump.
-- Clean registered writable NTAG215 NFC user data while retaining the MakerTag record; optionally clean before removing a registration. These operations require the matching MakerVault v1.5.0 app implementation.
+- Clean registered writable NTAG215 NFC user data while retaining the MakerTag record; optionally clean before removing a registration. These operations require the matching MakerVault v1.5.1 app implementation.
 - Read-only CFS material information and experimental Bambu/Elegoo RFID decoding; third-party tag sector writing remains intentionally unsupported.
 - FreeRTOS worker cleanup to avoid retained C++ `String` allocations. The maintainer reports stable heap through a two-hour-plus idle validation run.
 
@@ -75,6 +75,6 @@ See [flashing and regression tests](FLASHING.md), [release notes](../../docs/TER
 
 ## Version and release asset validation
 
-Source is prepared as **v1.0.1** for MakerVault **v1.5.0**. Published release assets are generated from a **tagged commit**, not from a draft PR. Check the exact resulting release tag and compare the startup serial banner, System info and MakerVault heartbeat firmware version. A normal update must preserve NVS (Wi-Fi networks, CA certificate and device pairing).
+Source is prepared as **v1.0.1** for MakerVault **v1.5.1**. Published release assets are generated from a **tagged commit**, not from a draft PR. Check the exact resulting release tag and compare the startup serial banner, System info and MakerVault heartbeat firmware version. A normal update must preserve NVS (Wi-Fi networks, CA certificate and device pairing).
 
 The publishing workflow produces an application binary, full flashing binaries and sketch ZIP, plus STL/STEP archives reused unchanged from previously released CAD assets. Third-party Arduino dependencies are installed separately and must match the versions above. Check that GitHub Actions succeeds and actual assets exist before announcing publication.
