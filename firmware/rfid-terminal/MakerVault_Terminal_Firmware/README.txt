@@ -1,35 +1,42 @@
-MakerVault RFID/NFC Terminal — Arduino sketch
-===========================================
+MakerVault Terminal v1.0.0 — Arduino sketch
+==========================================
 
-Open MakerVault_Terminal_Firmware.ino in Arduino IDE with every file in this
-directory kept alongside it. See ../../BUILD.md and ../../FLASHING.md for the
-tested board setup, libraries, wiring, HTTPS/CA setup and flashing instructions.
+This directory is the complete MakerVault Terminal sketch source. Open
+MakerVault_Terminal_Firmware.ino in Arduino IDE, leaving all sketch files in
+the same directory. External Arduino libraries and the ESP32 board package
+are installed separately; see ../../BUILD.md and ../../FLASHING.md.
 
-Hardware: ESP32-S3 SuperMini, RC522 SPI, ST7735S 128x128 TFT, encoder, Back
-and Confirm controls. The published firmware baseline on main is v0.5.1.14;
-this draft branch contains additional connected MakerTag features and retains
-the legacy internal version string until a separately tested version bump.
+Tested target: ESP32-S3 SuperMini, RC522 SPI, ST7735S 128x128 colour TFT,
+KY-040 encoder and Back/Confirm buttons. Keep the documented GPIO wiring.
 
-Works with MakerVault app PR #150:
-- Read a tag UID and look it up against the connected MakerVault instance.
-- From MakerVault's Add Maker Tag screen, choose an inventory item/spool and
-  request a scan on the paired terminal. Confirm assignment on the device.
-- For an already registered UID assigned elsewhere, the terminal shows the
-  current and proposed targets and requires a second explicit Confirm to
-  reassign. The physical UID and MakerVault ID are preserved.
-- Press Back to cancel a pending request. Browser cancellation also returns
-  the terminal to its menu. Browser refresh can resume a pending session.
-- A normal lookup does not create or alter a MakerTag.
+Features in the matching v1.0.0 release-candidate source:
+- Verified HTTPS and 8-digit Connected Devices pairing with scoped API keys.
+- Native ESP-IDF esp_http_client transport with reusable TLS session; one
+  authenticated 5-second pending-work poll, heartbeat and status verification.
+- MakerTag scan, on-terminal and browser-led registration, reassignment,
+  terminal record browsing and A-Z letter jump.
+- Physical NTAG215 NDEF URL writing, verification, overwrite and cancellation
+  safeguards. Never bypass matching UID, confirmed operation or permissions.
+- Clean registered writable NTAG215 NFC user data without removing the record;
+  optionally clean before removing a MakerTag registration. Requires the
+  companion MakerVault app implementation (PR #165).
+- Read-only Creality CFS filament material decoding and experimental read-only
+  Bambu/Elegoo decoding; third-party tag writing is not implemented.
 
-Tag memory is NOT written. NDEF, MIFARE blocks, and Creality CFS payload
-reading/writing are NOT implemented. Exact NTAG215 model verification is NOT
-performed by the current RC522 family identification.
+The firmware fixes the earlier repeated idle HTTPS heap loss by replacing the
+Arduino HTTP client and ensuring C++ temporary buffers unwind before FreeRTOS
+worker deletion. The maintainer's two-hour-plus idle test showed stable heap;
+this is a validated observation, not a guarantee for every network setup.
 
-Use verified HTTPS; never use insecure TLS. Wi-Fi, CA and pairing credentials
-live in NVS: do not select Erase All Flash on ordinary updates. NVS encryption
-has not been verified. QRCode qrcode.c/qrcode.h retain third-party MIT notice.
+Flash using the exact ESP32-S3 partition/board configuration in BUILD.md.
+Do not use 'Erase All Flash' on a paired terminal: NVS stores Wi-Fi, local CA,
+device key and endpoint binding. Never disable TLS verification or copy the
+local CA private key onto the terminal.
 
-Draft release gate: compile the RENAMED sketch and run final regression tests
-before merging PR #6 or app PR #150.
+Release download ZIPs may be generated from tags after PR merge; a feature
+branch build is not automatically the previously published release. Verify
+the installed version, release asset checksums, trusted server endpoint,
+online pairing and MakerTag safety before deploying.
 
-NEXT RELEASE CANDIDATE: v0.6.0 (PR #6). The sketch reports v0.6.0; previously published firmware v0.5.1.14 remains the stable baseline until release. Retest flashing and the displayed version after this version-only change. No NDEF/CFS tag-memory writing.
+The bundled QRCode qrcode.c/qrcode.h files retain their third-party MIT
+licence notice.
