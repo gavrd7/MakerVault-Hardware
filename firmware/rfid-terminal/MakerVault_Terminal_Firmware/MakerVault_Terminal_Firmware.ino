@@ -27,6 +27,7 @@
 #include "connected_makertag_operation.h"
 #endif
 #include "terminal_pending_work.h"
+#include "memory_recovery_policy.h"
 
 // MakerVault handheld UI v0.8 development -- ESP32-S3 SuperMini, Rev C.3
 // Shared hardware SPI, read-only RFID, all original GPIO assignments.
@@ -1610,6 +1611,47 @@ void pollTag(){
  Serial.printf("[RFID] UID=%s, Type=%s\n",recentUid.c_str(),recentType.c_str());
  scanPage();
 }
+// Emergency protection against the long-idle TLS heap exhaustion seen on
+// physical ESP32-S3 terminals. This is a controlled reboot, not a heap
+// allocator purge and not a substitute for fixing the TLS retention issue.
+MakerVaultMemoryRecovery::Guard memoryRecoveryGuard;
+uint32_t memoryRecoveryLastCheck = 0;
+
+void memoryRecoveryLoop() {
+  const uint32_t now = millis();
+  if ((uint32_t)(now - memoryRecoveryLastCheck) <
+      MakerVaultMemoryRecovery::kCheckIntervalMs) return;
+  memoryRecoveryLastCheck = now;
+
+  const size_t freeHeap = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  const size_t largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+
+  // Do not reboot while a TLS worker, pairing/provisioning or physical tag
+  // workflow is in progress. This protects writes, verified erasures and
+  // server-side completion steps from an unexpected local reset.
+  bool safeToRestart = !mvTask && !mvTestRunning &&
+      mvPairState != 1 && mvPairState != 2 &&
+      !setupAPActive && !lanPortalActive &&
+      regState == 0 && remoteLookupState == 0;
+#if MAKERVAULT_NDEF_WRITER_ENABLED
+  safeToRestart = safeToRestart && ndefState == 0 && opState == 0;
+#endif
+  const bool previouslyLow = memoryRecoveryGuard.lowSeen;
+  const bool restart = memoryRecoveryGuard.check(now, freeHeap, largestBlock, safeToRestart);
+  if (memoryRecoveryGuard.lowSeen && !previouslyLow)
+    Serial.printf("[MEMORY] Low heap detected: free=%u largest=%u; awaiting sustained low memory and safe idle\n",
+                  (unsigned)freeHeap, (unsigned)largestBlock);
+  else if (!memoryRecoveryGuard.lowSeen && previouslyLow)
+    Serial.println("[MEMORY] Heap recovered; cancelled low-memory reboot");
+
+  if (!restart) return;
+  Serial.printf("[MEMORY] Recovery reboot: free=%u largest=%u uptime_ms=%lu; no active NFC or TLS work\n",
+                (unsigned)freeHeap, (unsigned)largestBlock, (unsigned long)now);
+  Serial.flush();
+  delay(100);
+  esp_restart(); // Restores TLS memory and reconnects using saved Wi-Fi / pairing settings.
+}
+
 void setup(){
  bootAt=millis();Serial.begin(115200);
  led.begin();led.setBrightness(0);led.clear();led.show();
@@ -1760,4 +1802,5 @@ void loop(){
  }
  if(page==SETUP_WIFI && !setupAPActive){page=WIFI_MENU;render();}
  if(page==MAKERVAULT_SETUP && !setupPortalRunning()){page=MV_MENU;render();}
+  memoryRecoveryLoop();
 }
