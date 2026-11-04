@@ -41,7 +41,7 @@ void ndefSchedulePoll() {
      remoteLookupState!=0 || mvTask || !mvPairVerified || !mvCanWriteTags ||
      !mvEndpointApproved() || mvCheckState!=3 || WiFi.status()!=WL_CONNECTED)
     return;
-  if((uint32_t)(millis()-ndefLastPoll)<5000)return;
+  if((uint32_t)(millis()-ndefLastPoll)<15000UL)return;
   ndefLastPoll=millis();
   if(xTaskCreatePinnedToCore(ndefPendingTask,"mv_ndef_poll",12288,nullptr,1,&mvTask,0)!=pdPASS)
     mvTask=nullptr;
