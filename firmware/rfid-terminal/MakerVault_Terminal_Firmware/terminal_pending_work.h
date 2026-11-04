@@ -45,7 +45,7 @@ void pendingWorkTask(void *){
  pendingWorkLastCode=code;
  if(code==200)pendingWorkInterval=5000UL;
  else if(code==403 || code==404)pendingWorkInterval=60000UL;
- else pendingWorkInterval=min(uint32_t(60000),pendingWorkInterval*2UL);
+ else pendingWorkInterval=(pendingWorkInterval>=30000UL)?60000UL:(pendingWorkInterval*2UL);
  if(code==200 && regState==0 && remoteLookupState==0
 #if MAKERVAULT_NDEF_WRITER_ENABLED
     && ndefState==0 && opState==0
