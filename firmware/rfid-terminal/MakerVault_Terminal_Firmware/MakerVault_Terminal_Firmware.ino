@@ -547,6 +547,12 @@ void mvStatusPage(){
  detailWrapped("Trust: "+mvTrustMode(),SILVER);
  detailWrapped("Last OK: "+mvLastGoodConnection,SILVER);
  detailWrapped("Last error: "+mvLastConnectionError,mvTlsStatus==1?SILVER:AMBER);
+ detailWrapped(String("Work API: ")+
+   (pendingWorkLastCode==200?"Connected":
+    pendingWorkLastCode==404?"Update MakerVault app":
+    pendingWorkLastCode==403?"Scope denied":
+    pendingWorkLastCode==0?"Not checked":"Retry pending"),
+   pendingWorkLastCode==200?GREEN:AMBER);
  detailWrapped("Heap free: "+String(heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT))+" bytes",SILVER);
  detailWrapped("Largest block: "+String(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT))+" bytes",SILVER);
  detailWrapped("API permissions:",WHITE);
