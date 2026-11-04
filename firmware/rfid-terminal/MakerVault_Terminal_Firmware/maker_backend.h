@@ -50,6 +50,8 @@ String mvTestError="Not tested", mvTestDetail="", mvTestTrust="";
 // Dedicated snapshot of the most recent manual test; background checks never update it.
 
 uint8_t mvTlsStatus=0; // 0 unknown, 1 verified, 2 rejected, 3 transport failure
+// Diagnostics only: sampled from loop after the HTTPS worker exits.
+volatile uint32_t mvHttpsCompletedCount=0;
 String mvTrustMode(){return mvCaPem.isEmpty()?"Public CA bundle":"Custom CA";}
 String mvTlsErrorText(WiFiClientSecure &client,int httpCode){
  char detail[192]={0};int tlsErr=client.lastError(detail,sizeof(detail));
@@ -303,6 +305,7 @@ int mvHttps(const String &path,const String &method,const String &body,String &r
  Serial.printf("[TLS HEAP] %s %s HTTP=%d free=%u->%u delta=%ld largest=%u->%u\n",
    method.c_str(),path.c_str(),code,(unsigned)freeBefore,(unsigned)freeAfter,
    (long)freeAfter-(long)freeBefore,(unsigned)blockBefore,(unsigned)blockAfter);
+ ++mvHttpsCompletedCount;
  return code;
 }
 
