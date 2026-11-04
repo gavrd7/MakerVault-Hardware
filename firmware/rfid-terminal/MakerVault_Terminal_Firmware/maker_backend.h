@@ -245,66 +245,123 @@ bool mvTimeReady(){
  }
  return false;
 }
+// One HTTPS transport shared by the existing single mvTask request slot.
+// Keep-alive is safe only while the base URL and trust material are unchanged.
+// HTTPClient::end() clears request headers, but preserves a reusable socket.
+WiFiClientSecure mvSessionClient;
+HTTPClient mvSessionHttp;
+String mvSessionOrigin="",mvSessionCa="";
+bool mvSessionConfigured=false;
+uint32_t mvSessionHandshakeCount=0,mvSessionReuseCount=0,mvSessionResetCount=0;
+
+void mvResetHttpsSession(const char *reason){
+  mvSessionHttp.setReuse(false);
+  mvSessionHttp.end();
+  mvSessionClient.stop();
+  mvSessionHttp.setReuse(true);
+  mvSessionConfigured=false;
+  mvSessionOrigin="";
+  mvSessionCa="";
+  ++mvSessionResetCount;
+  Serial.printf("[TLS SESSION] reset=%lu reason=%s\\n",
+      (unsigned long)mvSessionResetCount,reason);
+}
+
 int mvHttps(const String &path,const String &method,const String &body,String &response,bool bearer){
  response="";
- // Per-request diagnostics: never allow an earlier TLS failure to survive a new request.
- mvTlsDetail="";
- mvTlsStatus=0;
- mvLastConnectionError="Not tested";
- if(WiFi.status()!=WL_CONNECTED){mvTlsStatus=3;mvLastConnectionError="Wi-Fi offline";return -1000;}
+ mvTlsDetail="";mvTlsStatus=0;mvLastConnectionError="Not tested";
+ if(WiFi.status()!=WL_CONNECTED){
+   if(mvSessionConfigured)mvResetHttpsSession("wifi offline");
+   mvTlsStatus=3;mvLastConnectionError="Wi-Fi offline";return -1000;
+ }
  if(!mvValidUrl(mvBaseUrl)){mvTlsStatus=3;mvLastConnectionError="Invalid HTTPS URL";return -1001;}
- // Fail closed BEFORE DNS, TCP and HTTP for a bearer request on a changed URL.
- // This applies to /me, heartbeats and manual Test HTTPS equally.
+ // Never send a saved bearer key to a changed, unapproved endpoint.
  if(bearer && !mvApiKey.isEmpty() && !mvEndpointApproved()){
-   mvTlsStatus=0;mvLastConnectionError="Credential locked to original server";
+   if(mvSessionConfigured)mvResetHttpsSession("origin not approved");
    mvTlsDetail="Stored key remains saved; restore original URL or pair with new server";
+   mvLastConnectionError="Credential locked to original server";
    Serial.println("[MAKERVAULT] Bearer request blocked: server URL differs from approved origin");
    return -1004;
  }
- // Resolve the hostname before the TLS handshake so DNS failures aren't mistaken
- // for certificate failures. HTTPS connections still use the original hostname.
- String host=mvBaseUrl.substring(8);int cut=host.indexOf('/');if(cut>=0)host=host.substring(0,cut);
- int port=host.lastIndexOf(':');if(port>0)host=host.substring(0,port);
- if(host.isEmpty()){mvLastConnectionError="Invalid hostname";mvTlsStatus=3;return -1001;}
- IPAddress resolved;if(WiFi.hostByName(host.c_str(),resolved)!=1){mvLastConnectionError="Cannot resolve server";mvTlsStatus=3;mvTlsDetail="DNS lookup failed";Serial.println("[TLS] DNS resolution failed");return -1003;}
- // Snapshot before and AFTER TLS objects go out of scope. Measuring
- // before WiFiClientSecure is destroyed would count normal TLS allocations as
- // leaked. Never include server credentials or response payload in logs.
+ // Certificate changes (including removal) MUST invalidate the old TLS
+ // socket, rather than silently continuing a previously verified session.
+ if(mvSessionConfigured && (mvSessionOrigin!=mvBaseUrl || mvSessionCa!=mvCaPem))
+   mvResetHttpsSession("endpoint or CA changed");
+ if(!mvSessionConfigured){
+   String host=mvBaseUrl.substring(8);
+   int cut=host.indexOf('/');if(cut>=0)host=host.substring(0,cut);
+   int port=host.lastIndexOf(':');if(port>0)host=host.substring(0,port);
+   if(host.isEmpty()){mvLastConnectionError="Invalid hostname";mvTlsStatus=3;return -1001;}
+   IPAddress resolved;
+   if(WiFi.hostByName(host.c_str(),resolved)!=1){
+     mvLastConnectionError="Cannot resolve server";mvTlsStatus=3;
+     mvTlsDetail="DNS lookup failed";Serial.println("[TLS] DNS resolution failed");
+     return -1003;
+   }
+   // Configure TLS trust only on fresh transport creation. TLS verification
+   // and hostname validation are never disabled for reuse or recovery.
+   if(mvCaPem.length())mvSessionClient.setCACert(mvCaPem.c_str());
+   else mvSessionClient.setCACertBundle(x509_crt_bundle,x509_crt_bundle_len);
+   mvSessionClient.setTimeout(4);
+   mvSessionOrigin=mvBaseUrl;
+   mvSessionCa=mvCaPem;
+   mvSessionConfigured=true;
+ }
  const size_t freeBefore=heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
  const size_t blockBefore=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
  int code=-1001;
- {
-   WiFiClientSecure client;
-   if(mvCaPem.length())client.setCACert(mvCaPem.c_str());
-   else client.setCACertBundle(x509_crt_bundle,x509_crt_bundle_len);
-   client.setTimeout(4);
-   HTTPClient http;
-   http.setTimeout(4500);
-   if(http.begin(client,mvBaseUrl+path)){
-     http.addHeader("Accept","application/json");
-     if(bearer&&mvApiKey.length())http.addHeader("Authorization","Bearer "+mvApiKey);
-     if(method=="POST"){
-       http.addHeader("Content-Type","application/json");
-       code=http.POST(body);
-     }else code=http.GET();
-     if(code>0){
-       mvSaveHttpStatus(code);
-       response=http.getString();
-       if(response.length()>4096){
-         response="";code=-1002;mvLastConnectionError="Response too large";mvTlsStatus=3;
-       }
-     }else mvLastConnectionError=mvTlsErrorText(client,code);
-     http.end();
-   }else{
-     mvLastConnectionError="Invalid HTTPS request";mvTlsStatus=3;
+ // The server may close an idle keep-alive socket without a FIN being
+ // observed yet. GET requests alone may be retried once after a transport
+ // failure; never replay POSTs, which could commit NFC/assignment actions.
+ for(uint8_t attempt=0;attempt<(method=="GET"?2:1);++attempt){
+   const bool reused=mvSessionClient.connected();
+   mvSessionHttp.setReuse(true);
+   mvSessionHttp.setTimeout(4500);
+   if(!mvSessionHttp.begin(mvSessionClient,mvBaseUrl+path)){
+     code=-1001;mvLastConnectionError="Invalid HTTPS request";mvTlsStatus=3;
+     mvResetHttpsSession("HTTP begin failed");
+     break;
    }
-   client.stop(); // explicitly release TLS transport before measuring
+   mvSessionHttp.addHeader("Accept","application/json");
+   if(bearer&&mvApiKey.length())mvSessionHttp.addHeader("Authorization","Bearer "+mvApiKey);
+   if(method=="POST"){
+     mvSessionHttp.addHeader("Content-Type","application/json");
+     code=mvSessionHttp.POST(body);
+   }else code=mvSessionHttp.GET();
+   if(reused)++mvSessionReuseCount;
+   else ++mvSessionHandshakeCount;
+   if(code>0){
+     mvSaveHttpStatus(code);
+     response=mvSessionHttp.getString();
+     if(response.length()>4096){
+       response="";code=-1002;mvLastConnectionError="Response too large";mvTlsStatus=3;
+     }
+   }else mvLastConnectionError=mvTlsErrorText(mvSessionClient,code);
+   // HTTPClient::end() removes per-request headers; only the validated
+   // reusable connection survives. A non-reusable server response stops it.
+   mvSessionHttp.end();
+   if(code<=0){
+     mvResetHttpsSession("HTTP transport failure");
+     if(method=="GET" && attempt==0){
+       // The next attempt recreates TLS with the same verified trust.
+       if(mvCaPem.length())mvSessionClient.setCACert(mvCaPem.c_str());
+       else mvSessionClient.setCACertBundle(x509_crt_bundle,x509_crt_bundle_len);
+       mvSessionClient.setTimeout(4);
+       mvSessionOrigin=mvBaseUrl;mvSessionCa=mvCaPem;mvSessionConfigured=true;
+       response="";mvTlsDetail="";mvTlsStatus=0;
+       continue;
+     }
+   }
+   break;
  }
  const size_t freeAfter=heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
  const size_t blockAfter=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
- Serial.printf("[TLS HEAP] %s %s HTTP=%d free=%u->%u delta=%ld largest=%u->%u\n",
+ Serial.printf("[TLS HEAP] %s %s HTTP=%d free=%u->%u delta=%ld largest=%u->%u\\n",
    method.c_str(),path.c_str(),code,(unsigned)freeBefore,(unsigned)freeAfter,
    (long)freeAfter-(long)freeBefore,(unsigned)blockBefore,(unsigned)blockAfter);
+ Serial.printf("[TLS SESSION] opened=%lu reused=%lu resets=%lu active=%d\\n",
+   (unsigned long)mvSessionHandshakeCount,(unsigned long)mvSessionReuseCount,
+   (unsigned long)mvSessionResetCount,(int)mvSessionClient.connected());
  ++mvHttpsCompletedCount;
  return code;
 }
