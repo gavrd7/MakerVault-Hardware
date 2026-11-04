@@ -1,6 +1,6 @@
 # Flashing and validating the MakerVault handheld firmware
 
-This guide covers the **MakerVault Terminal v1.0.0 release-candidate source** for the matching **MakerVault v1.5.0** app. For published downloads, verify the final release tag and assets on [MakerVault-Hardware Releases](https://github.com/gavrd7/MakerVault-Hardware/releases). Earlier v0.5/v0.6 limitations no longer describe the current source.
+This guide covers the **MakerVault Terminal v1.0.1 release-candidate source** for the matching **MakerVault v1.5.0** app. For published downloads, verify the final release tag and assets on [MakerVault-Hardware Releases](https://github.com/gavrd7/MakerVault-Hardware/releases). Earlier v0.5/v0.6 limitations no longer describe the current source.
 
 ## Prepare Arduino IDE
 
@@ -22,7 +22,7 @@ With the enclosure open, watch Serial Monitor at **115200** and confirm TFT spla
 5. In **Connections → MakerVault**, set the **HTTPS** base URL. For a self-signed/private Local CA, import its **public CA certificate** via the setup workflow; never place a CA private key on the device. Run the built-in HTTPS test. No `setInsecure()` fallback should be used.
 6. On MakerVault: **Settings → User Account → Connected Devices → Add Device**. Start Pair Device on the handheld, then approve the displayed **eight-digit pairing code** in the web wizard before expiry. Verify paired status and heartbeat; reboot and check persistence. Credentials are stored in device NVS but **NVS encryption/secure boot were not verified**. Terminal-side Forget pairing is local-only; revoke from MakerVault if necessary.
 
-**v1.0.0 capabilities with MakerVault v1.5.0:** paired HTTPS using ESP-IDF persistent client, MakerTag scanning and record browsing, on-device/browser-led assignment and reassignment, verified NTAG215 NDEF URL writing, clean and clean-on-remove with physical confirmation, read-only Creality CFS decoding and experimental read-only Bambu/Elegoo paths. **Not implemented:** OTA and third-party filament-tag writing. Clean/remove requires the matching app PR #165 or an app release containing it.
+**v1.0.1 capabilities with MakerVault v1.5.0:** paired HTTPS using ESP-IDF persistent client, MakerTag scanning and record browsing, on-device/browser-led assignment and reassignment, verified NTAG215 NDEF URL writing, clean and clean-on-remove with physical confirmation, read-only Creality CFS decoding and experimental read-only Bambu/Elegoo paths. **Not implemented:** OTA and third-party filament-tag writing. Clean/remove requires the matching app PR #165 or an app release containing it.
 
 ## Troubleshooting
 
@@ -41,9 +41,9 @@ With the enclosure open, watch Serial Monitor at **115200** and confirm TFT spla
 
 > **Release-candidate status:** The maintainer reports all release regression tests passed, including HTTPS reliability, certificate rejection, connectivity recovery and physical MakerTag safety. CI compiles this source. The public release binaries and sketch packages must still be checked after a final tag is published; do not assume draft-branch artifacts are release assets.
 
-## v1.0.0 verification and endurance
+## v1.0.1 verification and endurance
 
-1. Flash the final v1.0.0 build without erasing NVS. Check **v1.0.0** in System info, serial startup and heartbeat.
+1. Flash the final v1.0.1 build without erasing NVS. Check **v1.0.1** in System info, serial startup and heartbeat.
 2. Confirm the terminal pairs or reconnects with validated HTTPS (never insecure TLS), resolves `/api/device/v1/me/`, and reports heartbeat HTTP 200.
 3. Watch `[TLS SESSION]` for `backend=ESP-IDF` and reuse of an established connection, and `[HEAP IDLE]` for a stable baseline with normal task count. Small per-request `[TLS HEAP]` negative deltas are temporary buffers, not proof of leakage.
 4. Verify Wi-Fi loss and MakerVault HTTPS restart recover without re-pairing. A different/untrusted CA and mismatched hostname must be rejected.
