@@ -35,7 +35,10 @@ String pendingWorkObject(const String &json,const char *name){
  return "";
 }
 
-void pendingWorkTask(void *){
+// Ordinary C++ scope: all temporary Strings must destruct BEFORE the
+// FreeRTOS task deletes itself. Deleting from inside this function leaks
+// its live String buffers on every 5-second poll.
+void pendingWorkTaskRun(){
  String body;
  const int code=mvHttps("/api/device/v1/pending-work/","GET","",body,true);
  // Back off on failures instead of repeatedly exhausting TLS allocations.
@@ -109,7 +112,12 @@ void pendingWorkTask(void *){
    }
   }
  }
- mvTask=nullptr;vTaskDelete(nullptr);
+}
+
+void pendingWorkTask(void *){
+ pendingWorkTaskRun(); // unwinds all C++ locals, including nested JSON fields
+ mvTask=nullptr;
+ vTaskDelete(nullptr);
 }
 
 void pendingWorkPoll(bool idlePage){
