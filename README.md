@@ -128,3 +128,11 @@ The **App.bin** is intended for application-only updates that preserve NVS, when
 MakerVault-authored code is licensed under the **GNU Affero General Public License v3**; see [LICENSE](LICENSE). Bundled third-party components retain their stated licences; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Do not commit credentials, local CA private keys, personal network details or unredacted provisioning logs. Historical firmware acceptance records remain in their own files rather than being mixed into this project overview.
+
+## Contact and hardware support
+
+- **Hardware, firmware and general MakerVault enquiries:** [maker@makervault.co.uk](mailto:maker@makervault.co.uk)
+- **Hardware development partnerships and evaluation units:** [partnerships@makervault.co.uk](mailto:partnerships@makervault.co.uk) — see the [Development Partners programme](https://github.com/gavrd7/MakerVault/blob/main/DEVELOPMENT_PARTNERS.md).
+- **Help with MakerVault devices or integrations:** [support@makervault.co.uk](mailto:support@makervault.co.uk).
+
+For reproducible hardware/firmware bugs, use this repository's [issues](https://github.com/gavrd7/MakerVault-Hardware/issues) and include the board, firmware version, connection method and sanitised logs. Do not post credentials, authentication tokens or sensitive logs. For vulnerabilities affecting MakerVault itself, follow the [private security reporting guidance](https://github.com/gavrd7/MakerVault/blob/main/SECURITY.md); avoid public disclosure of security issues. Email support does not imply a guaranteed response time.
